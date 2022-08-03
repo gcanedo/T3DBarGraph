@@ -2,10 +2,106 @@ object MainForm: TMainForm
   Left = 0
   Top = 0
   Caption = 'Form1'
-  ClientHeight = 607
-  ClientWidth = 811
+  ClientHeight = 758
+  ClientWidth = 1118
   FormFactor.Width = 320
   FormFactor.Height = 480
   FormFactor.Devices = [Desktop]
+  OnCreate = FormCreate
+  OnClose = FormClose
   DesignerMasterStyle = 0
+  object Viewport3D1: TViewport3D
+    Camera = Camera1
+    Position.X = 160.000000000000000000
+    Position.Y = 16.000000000000000000
+    Size.Width = 809.000000000000000000
+    Size.Height = 641.000000000000000000
+    Size.PlatformDefault = False
+    UsingDesignCamera = False
+    OnMouseDown = Viewport3D1MouseDown
+    OnMouseMove = Viewport3D1MouseMove
+    OnMouseUp = Viewport3D1MouseUp
+    OnMouseWheel = Viewport3D1MouseWheel
+    object Dummy1: TDummy
+      Position.Y = -5.000000000000000000
+      Position.Z = 5.000000000000000000
+      Width = 1.999956965446472000
+      Height = 4.293280601501465000
+      Depth = 4.121632575988770000
+      object Cube1: TCube
+        Width = 1.000000000000000000
+        Height = 1.000000000000000000
+        Depth = 1.000000000000000000
+        MaterialSource = LightMaterialSource1
+      end
+    end
+    object Light1: TLight
+      Color = claWhite
+      LightType = Directional
+      SpotCutOff = 180.000000000000000000
+      Position.X = -7.936183929443359000
+      Position.Y = -4.914687156677246000
+      RotationAngle.X = 320.029449462890600000
+      RotationAngle.Y = 95.215042114257810000
+      RotationAngle.Z = 321.639923095703100000
+      Width = 1.000000000000000000
+      Height = 1.000000000000000000
+      Depth = 1.000000000000000000
+      Quanternion = 
+        '(-0.446613162755966,0.731246531009674,-0.00834605190902948,0.515' +
+        '503585338593)'
+    end
+    object Light2: TLight
+      Color = claWhite
+      LightType = Directional
+      SpotCutOff = 180.000000000000000000
+      Position.X = 7.718925952911377000
+      Position.Y = -4.985794067382813000
+      RotationAngle.X = 322.745330810546900000
+      RotationAngle.Y = 290.022491455078100000
+      RotationAngle.Z = 353.691406250000000000
+      Width = 1.000000000000000000
+      Height = 1.000000000000000000
+      Depth = 1.000000000000000000
+      Quanternion = 
+        '(0.291186094284058,0.528155505657196,0.225597366690636,-0.765093' +
+        '982219696)'
+    end
+    object Camera1: TCamera
+      AngleOfView = 45.000000000000000000
+      Position.Y = -8.000000000000000000
+      Position.Z = -20.000000000000000000
+      Width = 1.000000000000000000
+      Height = 1.000000000000000000
+      Depth = 1.000000000000000000
+    end
+  end
+  object Memo1: TMemo
+    Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
+    DataDetectorTypes = []
+    Position.X = 16.000000000000000000
+    Position.Y = 16.000000000000000000
+    Size.Width = 129.000000000000000000
+    Size.Height = 649.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 1
+    Viewport.Width = 125.000000000000000000
+    Viewport.Height = 645.000000000000000000
+  end
+  object Button1: TButton
+    Position.X = 1016.000000000000000000
+    Position.Y = 456.000000000000000000
+    TabOrder = 2
+    Text = 'Generate'
+    OnClick = Button1Click
+  end
+  object LightMaterialSource1: TLightMaterialSource
+    Diffuse = claWhite
+    Ambient = xFF202020
+    Emissive = claNull
+    Specular = claAntiquewhite
+    Shininess = 30
+    Left = 984
+    Top = 600
+  end
 end

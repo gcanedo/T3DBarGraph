@@ -3,11 +3,15 @@ program T3DBarGraphDemo;
 uses
   System.StartUpCopy,
   FMX.Forms,
-  UMain in 'UMain.pas' {MainForm};
+  FMX.Types,
+  UMain in 'UMain.pas' {MainForm},
+  U3DBarGraph in 'U3DBarGraph.pas';
 
 {$R *.res}
 
 begin
+
+  GlobalUseMetal := true;
   Application.Initialize;
   Application.CreateForm(TMainForm, MainForm);
   Application.Run;
