@@ -12,11 +12,11 @@ object MainForm: TMainForm
   DesignerMasterStyle = 0
   object Viewport3D1: TViewport3D
     Camera = Camera1
-    Color = claSlateblue
-    Position.X = 312.000000000000000000
-    Position.Y = 24.000000000000000000
-    Size.Width = 640.000000000000000000
-    Size.Height = 480.000000000000000000
+    Color = claBlack
+    Position.X = 8.000000000000000000
+    Position.Y = 16.000000000000000000
+    Size.Width = 545.000000000000000000
+    Size.Height = 425.000000000000000000
     Size.PlatformDefault = False
     UsingDesignCamera = False
     OnMouseDown = Viewport3D1MouseDown
@@ -24,14 +24,23 @@ object MainForm: TMainForm
     OnMouseUp = Viewport3D1MouseUp
     OnMouseWheel = Viewport3D1MouseWheel
     object Dummy1: TDummy
-      Width = 1.999956965446472000
-      Height = 4.293280601501465000
-      Depth = 4.121632575988770000
-      object Cube1: TCube
-        Width = 1.000000000000000000
-        Height = 1.000000000000000000
-        Depth = 1.000000000000000000
-        MaterialSource = LightMaterialSource1
+      Width = 5.000000000000000000
+      Height = 5.000000000000000000
+      Depth = 5.000000000000000000
+      OnRender = Dummy1Render
+      object Rectangle3D1: TRectangle3D
+        Position.Y = 2.500000000000000000
+        RotationAngle.X = 90.000000000000000000
+        Width = 5.000000000000000000
+        Height = 5.000000000000000000
+        Depth = 0.000099999997473788
+        CornerType = Round
+        Flatness = 0.050000000745058060
+        Sides = [Front, Back, Shaft]
+        MaterialBackSource = ColorMaterialSource1
+        MaterialShaftSource = ColorMaterialSource1
+        MaterialSource = ColorMaterialSource1
+        Quanternion = '(0.70710676908493,0,0,0.70710676908493)'
       end
     end
     object Light1: TLight
@@ -73,23 +82,16 @@ object MainForm: TMainForm
       Height = 1.000000000000000000
       Depth = 1.000000000000000000
     end
-  end
-  object Memo1: TMemo
-    Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
-    DataDetectorTypes = []
-    Position.X = 16.000000000000000000
-    Position.Y = 512.000000000000000000
-    Size.Width = 129.000000000000000000
-    Size.Height = 129.000000000000000000
-    Size.PlatformDefault = False
-    TabOrder = 1
-    Viewport.Width = 125.000000000000000000
-    Viewport.Height = 125.000000000000000000
+    object Sphere1: TSphere
+      Width = 0.100000001490116100
+      Height = 0.100000001490116100
+      Depth = 0.100000001490116100
+    end
   end
   object Button1: TButton
-    Position.X = 1016.000000000000000000
-    Position.Y = 456.000000000000000000
-    TabOrder = 2
+    Position.X = 248.000000000000000000
+    Position.Y = 664.000000000000000000
+    TabOrder = 1
     Text = 'Generate'
     OnClick = Button1Click
   end
@@ -99,7 +101,12 @@ object MainForm: TMainForm
     Emissive = claNull
     Specular = claAntiquewhite
     Shininess = 30
-    Left = 984
-    Top = 600
+    Left = 272
+    Top = 584
+  end
+  object ColorMaterialSource1: TColorMaterialSource
+    Color = claSkyblue
+    Left = 200
+    Top = 584
   end
 end

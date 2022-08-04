@@ -3,7 +3,14 @@ unit U3DBarGraph;
 interface
   uses
     FMX.Viewport3D, System.Classes, FMX.Objects3D, Math, System.SysUtils,
-    FMX.MaterialSources, System.UIConsts;
+    FMX.MaterialSources, System.UIConsts, FMX.Types3D, System.Math.Vectors;
+
+  const
+    BAR_PAD = 0.25;
+    BAR_WIDTH = 0.5;
+    BAR_DEPTH = 0.5;
+    DEFAULT_ROWCOUNT = 3;
+    DEFAULT_COLCOUNT = 4;
 
   type
 
@@ -25,22 +32,46 @@ interface
         procedure CreateBar(row, col: Integer; Value: Single);
     end;
 
+    TMainContainer = class(TDummy)
+      protected
+        procedure MainRender(Sender: TObject; Context: TContext3D);
+      public
+        BarContainer: TBarContainer;
+        constructor Create(AOwner: TComponent); override;
+    end;
+
     T3DBarGraph = class(TViewport3D)
       private
+
       protected
+
       public
+        Stage: TMainContainer;
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
+        procedure Add(row, col: Integer; Value: Single);
       published
     end;
 
 implementation
 
+constructor TMainContainer.Create(AOwner: TComponent);
+begin
+  inherited;
+  BarContainer := TBarContainer.Create(Self);
+  //OnRender := MainRender;
+end;
+
+procedure TMainContainer.MainRender(Sender: TObject; Context: TContext3D);
+begin
+  Context.DrawCube(TPoint3D.Zero, TPoint3D.Create(Width, Height, Depth), 1, claWhite);
+end;
+
 constructor TBarContainer.Create(AOwner: TComponent);
 begin
   inherited;
-  RowCount := 0;
-  ColCount := 0;
+  RowCount := DEFAULT_ROWCOUNT;
+  ColCount := DEFAULT_COLCOUNT;
   DataMin := MaxSingle;
   DataMax := MinSingle;
 end;
@@ -59,6 +90,9 @@ begin
   bar.val := value;
   bar.Opacity := 1.0;
 
+  //bar.Position.X := -0.5*DX*GRIDSX + x*DX + 0.5*DX;
+  //bar.Position.Y := -0.5*cylinder.Height; // Normaly origin is the center, lets set origin to base
+  //bar.Position.Z := -0.5*DX*GRIDSY + y*DY + 0.5*DY;
 
   mat := TLightMaterialSource.Create(self);
   mat.Shininess := 00;
@@ -83,6 +117,12 @@ end;
 constructor T3DBarGraph.Create(AOwner: TComponent);
 begin
   inherited;
+  Stage := TMainContainer.Create(Self);
+end;
+
+procedure T3DBarGraph.Add(row, col: Integer; Value: Single);
+begin
+  Stage.BarContainer.Add(row, col, Value);
 end;
 
 destructor T3DBarGraph.Destroy;

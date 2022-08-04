@@ -24,8 +24,8 @@ const
   GRIDSX = 10;
   DX = 0.8;
   DY = 0.8;
-  BARWIDTH = 1.5;
-  BARDEPTH = 1.5;
+  BARWIDTH = 0.5;
+  BARDEPTH = 0.5;
 
 
   Season: TInfoAxis = ['Spring', 'Summer', 'Autum', 'Winter'];
@@ -47,13 +47,14 @@ type
   TMainForm = class(TForm)
     Viewport3D1: TViewport3D;
     Dummy1: TDummy;
-    Cube1: TCube;
     Light1: TLight;
     Light2: TLight;
     Camera1: TCamera;
     LightMaterialSource1: TLightMaterialSource;
-    Memo1: TMemo;
     Button1: TButton;
+    Sphere1: TSphere;
+    Rectangle3D1: TRectangle3D;
+    ColorMaterialSource1: TColorMaterialSource;
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
@@ -65,6 +66,7 @@ type
       Shift: TShiftState; X, Y: Single);
     procedure Viewport3D1MouseWheel(Sender: TObject; Shift: TShiftState;
       WheelDelta: Integer; var Handled: Boolean);
+    procedure Dummy1Render(Sender: TObject; Context: TContext3D);
   private
     { Private declarations }
   public
@@ -74,7 +76,7 @@ type
     DataMin, DataMax: Single;
     ScaleY, LX, LY, RX, RY, RZ: Single;
 
-    plane: TPlane;
+    //plane: TPlane;
     rotation_by_mouse: Boolean;
     procedure Generate2DData;
     procedure Print2DData;
@@ -101,10 +103,14 @@ begin
        end;
 end;
 
+procedure TMainForm.Dummy1Render(Sender: TObject; Context: TContext3D);
+begin
+  Context.DrawCube(TPoint3D.Zero, TPoint3D.Create(5, 5, 5), 1, claWhite);
+end;
+
 procedure TMainForm.Button1Click(Sender: TObject);
 begin
-  Cube1.Visible := false;
-  CreateCylinders;
+  //CreateCylinders;
 end;
 
 procedure TMainForm.free2DData;
@@ -159,9 +165,9 @@ end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
-  ScaleY := 0.05;
-  Generate2DData;
-  Print2DData;
+
+//
+
 end;
 
 procedure TMainForm.Generate2DData;
@@ -185,12 +191,15 @@ procedure TMainForm.Print2DData;
 var
   i, j: Integer;
 begin
+
+  {
   Memo1.Lines.Clear;
   for I := 0 to GRIDSY - 1 do
      for J := 0 to GRIDSX - 1 do
        begin
          Memo1.Lines.Add(IntToStr(i) + ',' +  IntToStr(j) + ' = ' + FloatToStr(data[i][j]));
        end;
+       }
 end;
 
 procedure TMainForm.Viewport3D1MouseDown(Sender: TObject; Button: TMouseButton;

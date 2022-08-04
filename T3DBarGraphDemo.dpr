@@ -5,8 +5,7 @@ uses
   FMX.Forms,
   FMX.Types,
   UMain in 'UMain.pas' {MainForm},
-  U3DBarGraph in 'U3DBarGraph.pas',
-  UBarData in 'UBarData.pas';
+  U3DBarGraph in 'U3DBarGraph.pas';
 
 {$R *.res}
 
