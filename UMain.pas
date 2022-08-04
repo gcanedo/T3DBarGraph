@@ -9,16 +9,38 @@ uses
   FMX.MaterialSources, Math, FMX.Memo.Types, FMX.Controls.Presentation,
   FMX.ScrollBox, FMX.Memo, FMX.StdCtrls, System.UIConsts;
 
+Type
+  TInfoCell = record
+    row, col: byte;
+    val: Single;
+  end;
+
+  TInfoAxis = Array of String;
+  TInfoRow = Array[0..2] of TInfoCell;
+  TInfo = Array[0..3] of TInfoRow;
+
 const
   GRIDSY = 10;
   GRIDSX = 10;
   DX = 0.8;
   DY = 0.8;
-  BARWIDTH = 0.5;
-  BARDEPTH = 0.5;
+  BARWIDTH = 1.5;
+  BARDEPTH = 1.5;
+
+
+  Season: TInfoAxis = ['Spring', 'Summer', 'Autum', 'Winter'];
+  TimePeriod: TInfoAxis = ['1987-1996', '1937-1946', '1887-1896'];
+
+  MeanTemperature00: TInfoCell = (row: 0; col: 0; val: 14);
+
+//  MeanTemperatureRow0: TInfoRow = [MeanTemperature00, MeanTemperature00];
+//  MeanTemperatureRow1: TInfoRow = [MeanTemperature00];
+
+  MeanTemperature: TInfo = (((row: 0; col: 0; val: 14), (), ()), ((), (), ()), ((), (), ()), ((), (), ()));
 
 
 type
+
   TDataArray = Array[0..GRIDSY - 1, 0..GRIDSX - 1] of Single;
   TBarsArray = Array[0..GRIDSY - 1, 0..GRIDSX - 1] of TCylinder;
 
@@ -51,6 +73,8 @@ type
     bars: TBarsArray;
     DataMin, DataMax: Single;
     ScaleY, LX, LY, RX, RY, RZ: Single;
+
+    plane: TPlane;
     rotation_by_mouse: Boolean;
     procedure Generate2DData;
     procedure Print2DData;

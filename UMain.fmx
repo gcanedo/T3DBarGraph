@@ -12,10 +12,11 @@ object MainForm: TMainForm
   DesignerMasterStyle = 0
   object Viewport3D1: TViewport3D
     Camera = Camera1
-    Position.X = 160.000000000000000000
-    Position.Y = 16.000000000000000000
-    Size.Width = 809.000000000000000000
-    Size.Height = 641.000000000000000000
+    Color = claSlateblue
+    Position.X = 312.000000000000000000
+    Position.Y = 24.000000000000000000
+    Size.Width = 640.000000000000000000
+    Size.Height = 480.000000000000000000
     Size.PlatformDefault = False
     UsingDesignCamera = False
     OnMouseDown = Viewport3D1MouseDown
@@ -23,8 +24,6 @@ object MainForm: TMainForm
     OnMouseUp = Viewport3D1MouseUp
     OnMouseWheel = Viewport3D1MouseWheel
     object Dummy1: TDummy
-      Position.Y = -5.000000000000000000
-      Position.Z = 5.000000000000000000
       Width = 1.999956965446472000
       Height = 4.293280601501465000
       Depth = 4.121632575988770000
@@ -69,7 +68,6 @@ object MainForm: TMainForm
     end
     object Camera1: TCamera
       AngleOfView = 45.000000000000000000
-      Position.Y = -8.000000000000000000
       Position.Z = -20.000000000000000000
       Width = 1.000000000000000000
       Height = 1.000000000000000000
@@ -80,13 +78,13 @@ object MainForm: TMainForm
     Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
     DataDetectorTypes = []
     Position.X = 16.000000000000000000
-    Position.Y = 16.000000000000000000
+    Position.Y = 512.000000000000000000
     Size.Width = 129.000000000000000000
-    Size.Height = 649.000000000000000000
+    Size.Height = 129.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 1
     Viewport.Width = 125.000000000000000000
-    Viewport.Height = 645.000000000000000000
+    Viewport.Height = 125.000000000000000000
   end
   object Button1: TButton
     Position.X = 1016.000000000000000000
