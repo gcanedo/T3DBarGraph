@@ -3,7 +3,7 @@ object MainForm: TMainForm
   Top = 0
   Caption = 'Form1'
   ClientHeight = 758
-  ClientWidth = 1118
+  ClientWidth = 1241
   FormFactor.Width = 320
   FormFactor.Height = 480
   FormFactor.Devices = [Desktop]
@@ -101,12 +101,19 @@ object MainForm: TMainForm
     Emissive = claNull
     Specular = claAntiquewhite
     Shininess = 30
-    Left = 272
-    Top = 584
+    Left = 320
+    Top = 552
+  end
+  object Button2: TButton
+    Position.X = 824.000000000000000000
+    Position.Y = 536.000000000000000000
+    TabOrder = 4
+    Text = 'Plot'
+    OnClick = Button2Click
   end
   object ColorMaterialSource1: TColorMaterialSource
     Color = claSkyblue
-    Left = 200
-    Top = 584
+    Left = 128
+    Top = 544
   end
 end

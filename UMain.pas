@@ -7,7 +7,7 @@ uses
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Viewport3D,
   System.Math.Vectors, FMX.Controls3D, FMX.Objects3D, FMX.Types3D,
   FMX.MaterialSources, Math, FMX.Memo.Types, FMX.Controls.Presentation,
-  FMX.ScrollBox, FMX.Memo, FMX.StdCtrls, System.UIConsts;
+  FMX.ScrollBox, FMX.Memo, FMX.StdCtrls, System.UIConsts, U3DBarGraph;
 
 Type
   TInfoCell = record
@@ -55,6 +55,7 @@ type
     Sphere1: TSphere;
     Rectangle3D1: TRectangle3D;
     ColorMaterialSource1: TColorMaterialSource;
+    Button2: TButton;
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
@@ -67,6 +68,7 @@ type
     procedure Viewport3D1MouseWheel(Sender: TObject; Shift: TShiftState;
       WheelDelta: Integer; var Handled: Boolean);
     procedure Dummy1Render(Sender: TObject; Context: TContext3D);
+    procedure Button2Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -76,7 +78,8 @@ type
     DataMin, DataMax: Single;
     ScaleY, LX, LY, RX, RY, RZ: Single;
 
-    //plane: TPlane;
+
+    BarGraph: T3DBarGraph;
     rotation_by_mouse: Boolean;
     procedure Generate2DData;
     procedure Print2DData;
@@ -126,6 +129,7 @@ begin
          end;
 end;
 
+
 procedure TMainForm.CreateCylinder(x, y: Integer; value: Single; cla: TAlphaColor);
 var
   cylinder: TCylinder;
@@ -165,10 +169,21 @@ end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
-
-//
-
+  BarGraph := T3DBarGraph.Create(Self);
+  BarGraph.Parent := Self;
+  BarGraph.Width := 640;
+  BarGraph.Height := 480;
+  BarGraph.Position.X := 568;
+  BarGraph.Position.Y := 16;
 end;
+
+procedure TMainForm.Button2Click(Sender: TObject);
+begin
+  //BarGraph.FrontCamera.Position.Z := -20;
+
+  BarGraph.Plot;
+end;
+
 
 procedure TMainForm.Generate2DData;
 var
