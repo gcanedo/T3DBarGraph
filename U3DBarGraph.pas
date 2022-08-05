@@ -15,7 +15,9 @@ interface
     DEFAULT_BACKGROUND_COLOR = claBlack;
 
     DEFAULT_PLANE_COLOR = claWhite;
-    DEFAULT_GRID_COLOR = claGray;
+    DEFAULT_GRID_COLOR = claRed;
+    PLANE_DEPTH = 0.001;
+    PLANE_OPACITY = 0.6;
 
   type
 
@@ -90,13 +92,14 @@ begin
 
   origin := TSphere.Create(Self);
   origin.Parent := self;
-  origin.Width := 0.01;
+  origin.Width := 0.1;
   origin.Depth := origin.Width;
   origin.Height := origin.Width;
+  origin.Opacity := 0.8;
 
-  origin.Position.X := -Width/2;
-  origin.Position.Y := Height/2;
-  origin.Position.Z := Depth/2;
+  origin.Position.X := 0;
+  origin.Position.Y := 0;
+  origin.Position.Z := 0;
 
   CreateXYPlane;
 
@@ -108,43 +111,59 @@ begin
   XYPlane := TRectangle3D.Create(Self);
   XYPlane.Width := Width;
   XYPlane.Depth := Depth;
-  XYPlane.Height := 0.001;
+  XYPlane.Height := PLANE_DEPTH;
+
+  XYPlane.Position.X := 0;
+  XYPlane.Position.Y := 0;
+  XYPlane.Position.Z := 0;
+
   XYPlane.MaterialBackSource := ColorPlane;
   XYPlane.MaterialShaftSource := ColorPlane;
   XYPlane.MaterialSource := ColorPlane;
   XYPlane.Parent := Self;
   XYPlane.HitTest := false;
+  XYPlane.Opacity := PLANE_OPACITY;
   XYPlane.OnRender := XYPlaneRender;
 end;
 
 procedure TMainContainer.XYPlaneRender(Sender: TObject; Context: TContext3D);
 var
-  i: Integer;
-  StartPoint, EndPoint, RefPoint: TPoint3D;
+  StartPoint, EndPoint, TopLeft, CenterPoint: TPoint3D;
   WidthBlock, DepthBlock: Single;
-begin
-  WidthBlock := BAR_WIDTH + 2*BAR_PAD;
-  DepthBlock := BAR_DEPTH + 2*BAR_PAD;
 
-  RefPoint := TPoint3D.Create(XYPlane.Width/2, 0, 0) - TPoint3D.Create(Width/2, XYPlane.Height, Depth/2);
-  for I := 1 to BarContainer.ColCount - 1 do
+procedure DrawGrid(Ref: TPoint3D);
+var
+  I: Integer;
+begin
+    for I := 1 to BarContainer.ColCount - 1 do
     begin
-      StartPoint := RefPoint +  TPoint3D.Create(WidthBlock*I, XYPlane.Height/2, 0);
-      EndPoint := RefPoint +  TPoint3D.Create(WidthBlock*I, XYPlane.Height/2, Depth);
+      StartPoint := Ref +  TPoint3D.Create(WidthBlock*I, 0, 0);
+      EndPoint := StartPoint - TPoint3D.Create(0, 0, Depth);
       Context.DrawLine(StartPoint, EndPoint, 1, DEFAULT_GRID_COLOR);
     end;
 
   for I := 1 to BarContainer.RowCount - 1 do
     begin
-      StartPoint := RefPoint +  TPoint3D.Create(0, XYPlane.Height/2, DepthBlock*I);
-      EndPoint := RefPoint +  TPoint3D.Create(Width, XYPlane.Height/2, DepthBlock*I);
+      StartPoint := Ref +  TPoint3D.Create(0, 0, -DepthBlock*I);
+      EndPoint := StartPoint +  TPoint3D.Create(Width, 0, 0);
       Context.DrawLine(StartPoint, EndPoint, 1, DEFAULT_GRID_COLOR);
     end;
 
-
-  Context.DrawCube(TPoint3D.Create(XYPlane.Width/2, 0, 0), TPoint3D.Create(XYPlane.Width, XYPlane.Height, XYPlane.Depth), 1, DEFAULT_GRID_COLOR);
 end;
 
+
+begin
+  WidthBlock := BAR_WIDTH + 2*BAR_PAD;
+  DepthBlock := BAR_DEPTH + 2*BAR_PAD;
+
+  CenterPoint := TPoint3D.Create(XYPlane.Width/2, XYPlane.Height/2, 0);
+  TopLeft := TPoint3D.Create(-XYPlane.Width/2, -XYPlane.Height/2, XYPlane.Depth/2);
+  DrawGrid(CenterPoint + TopLeft);
+  TopLeft := TPoint3D.Create(-XYPlane.Width/2, XYPlane.Height/2, XYPlane.Depth/2);
+  DrawGrid(CenterPoint + TopLeft);
+
+  Context.DrawCube(CenterPoint, TPoint3D.Create(XYPlane.Width, XYPlane.Height, XYPlane.Depth), 1, DEFAULT_GRID_COLOR);
+end;
 
 procedure TMainContainer.MainRender(Sender: TObject; Context: TContext3D);
 begin
@@ -250,9 +269,9 @@ procedure T3DBarGraph.MouseMove(Sender: TObject; Shift: TShiftState; X, Y: Singl
 begin
   if(Status = 'MouseMove') then
     begin
-      //RotationAngle.X := RX + (Y-LY)*0.4;
+      Stage.RotationAngle.X := Pos3D.X + (Y-PosMouse.Y)*0.4;
       Stage.RotationAngle.Y := Pos3D.Y + (PosMouse.X - X)*0.4;
-      //RotationAngle.Z := RZ - 0.4*((LX-X)-(Y-LY));
+      Stage.RotationAngle.Z := Pos3D.Z - 0.4*((PosMouse.X-X)-(Y-PosMouse.Y));
     end;
 end;
 
