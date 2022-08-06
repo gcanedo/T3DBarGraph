@@ -17,26 +17,43 @@ interface
     DEFAULT_PLANE_COLOR = claWhite;
     DEFAULT_GRID_COLOR = claRed;
     PLANE_DEPTH = 0.001;
-    PLANE_OPACITY = 0.6;
+    PLANE_OPACITY = 0.9;
+
+    DEFAULT_NUMTICKS = 6;
+    DEFAULT_ZMIN = 0;
+    DEFAULT_ZMAX = 30;
 
   type
+    TOnUpdateEvent = procedure of object;
 
     TBar = class(TCube)
 
       private
-
+        procedure SetPosition(RowCount, ColCount: Integer);
+        procedure MainRender(Sender: TObject; Context: TContext3D);
       public
         row, col: Integer;
         val: Single;
+        color: TAlphaColor;
+        constructor Create(AOwner: TComponent); override;
     end;
 
     TBarContainer = class(TDummy)
+      private
+        procedure SetRowCount(val: Integer);
+        procedure SetColCount(val: Integer);
       public
-        RowCount, ColCount: Integer;
+        FOnUpdate: TOnUpdateEvent;
+        FRowCount, FColCount: Integer;
         DataMin, DataMax: Single;
+        Scale: Single;
         constructor Create(AOwner: TComponent); override;
-        procedure Add(row, col: Integer; Value: Single);
-        procedure CreateBar(row, col: Integer; Value: Single);
+        procedure Add(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
+        procedure CreateBar(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
+        property RowCount: Integer read FRowCount write SetRowCount;
+        property ColCount: Integer read FColCount write SetColCount;
+        procedure UpdatePositions;
+        function IndexOf(row, col: Integer): TBar;
     end;
 
     TMainContainer = class(TDummy)
@@ -44,34 +61,41 @@ interface
       protected
         procedure MainRender(Sender: TObject; Context: TContext3D);
         procedure XYPlaneRender(Sender: TObject; Context: TContext3D);
+        procedure XZPlaneRender(Sender: TObject; Context: TContext3D);
+        procedure YZPlaneRender(Sender: TObject; Context: TContext3D);
         procedure CreateXYPlane;
+        procedure CreateXZPlane;
+        procedure CreateYZPlane;
       public
-        XYPlane: TRectangle3D;
+        XYPlane, XZPlane, YZPlane: TRectangle3D;
         origin: TSphere;
         BarContainer: TBarContainer;
         HalfPlaneHeight: Single;
+        NumTicks: Integer;
         constructor Create(AOwner: TComponent); override;
+        procedure ResizePlanes;
     end;
 
     T3DBarGraph = class(TViewport3D)
       private
-      protected
         procedure MouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean);
         procedure MouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
         procedure MouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
         procedure MouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
         procedure InitMouseEvents;
+
+      protected
       public
         Stage: TMainContainer;
         FrontCamera: TCamera;
         status: String;
         Pos3D: TPoint3D;
         PosMouse: TPointF;
+        LeftLight, RightLight: TLight;
 
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
-        procedure Add(row, col: Integer; Value: Single);
-        procedure Plot;
+        procedure Add(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
       published
     end;
 
@@ -80,15 +104,15 @@ implementation
 constructor TMainContainer.Create(AOwner: TComponent);
 begin
   inherited;
+  NumTicks := DEFAULT_NUMTICKS;
+
   ColorPlane := TColorMaterialSource.Create(Self);
   ColorPlane.Color := DEFAULT_PLANE_COLOR;
 
   BarContainer := TBarContainer.Create(Self);
+  BarContainer.Parent := Self;
+  BarContainer.FOnUpdate := ResizePlanes;
 
-  Width := BarContainer.ColCount*(BAR_WIDTH + 2*BAR_PAD);
-  Depth := BarContainer.RowCount*(BAR_DEPTH + 2*BAR_PAD);
-  HalfPlaneHeight := Max(Width, Depth);
-  Height := HalfPlaneHeight;
 
   origin := TSphere.Create(Self);
   origin.Parent := self;
@@ -101,30 +125,170 @@ begin
   origin.Position.Y := 0;
   origin.Position.Z := 0;
 
+  CreateXZPlane;
   CreateXYPlane;
+  CreateYZPlane;
+
+  ResizePlanes;
+
+  XZPlane.OnRender := XZPlaneRender;
+  YZPlane.OnRender := YZPlaneRender;
+  XYPlane.OnRender := XYPlaneRender;
 
   OnRender := MainRender;
 end;
 
-procedure TMainContainer.CreateXYPlane;
+procedure TMainContainer.ResizePlanes;
 begin
-  XYPlane := TRectangle3D.Create(Self);
+  Width := BarContainer.ColCount*(BAR_WIDTH + 2*BAR_PAD);
+  Depth := BarContainer.RowCount*(BAR_DEPTH + 2*BAR_PAD);
+  HalfPlaneHeight := Max(Width, Depth);
+  Height := HalfPlaneHeight;
+  BarContainer.Scale := (DEFAULT_ZMAX - DEFAULT_ZMIN)/Height;
+
+  XZPlane.Width := Width;
+  XZPlane.Depth := PLANE_DEPTH;
+  XZPlane.Height := Height;
+  XZPlane.Position.X := 0;
+  XZPlane.Position.Y := 0;
+  XZPlane.Position.Z := Depth/2 + XZPlane.Depth/2;
+
+  YZPlane.Width := PLANE_DEPTH;
+  YZPlane.Depth := Depth;
+  YZPlane.Height := Height;
+  YZPlane.Position.X := -Width/2 - YZPlane.Width/2;
+  YZPlane.Position.Y := 0;
+  YZPlane.Position.Z := 0;
+
   XYPlane.Width := Width;
   XYPlane.Depth := Depth;
   XYPlane.Height := PLANE_DEPTH;
-
   XYPlane.Position.X := 0;
   XYPlane.Position.Y := 0;
   XYPlane.Position.Z := 0;
+end;
 
+procedure TMainContainer.CreateYZPlane;
+begin
+  YZPlane := TRectangle3D.Create(Self);
+  YZPlane.MaterialBackSource := ColorPlane;
+  YZPlane.MaterialShaftSource := ColorPlane;
+  YZPlane.MaterialSource := ColorPlane;
+  YZPlane.Parent := Self;
+  YZPlane.HitTest := false;
+  YZPlane.Opacity := PLANE_OPACITY;
+end;
+
+
+procedure TMainContainer.YZPlaneRender(Sender: TObject; Context: TContext3D);
+var
+  StartPoint, EndPoint, TopLeft, CenterPoint: TPoint3D;
+  WidthBlock, HeightBlock: Single;
+
+procedure DrawGrid(Ref: TPoint3D);
+var
+  I: Integer;
+begin
+  for I := 1 to BarContainer.RowCount - 1 do
+    begin
+      StartPoint := Ref +  TPoint3D.Create(0, 0, WidthBlock*I);
+      EndPoint := StartPoint - TPoint3D.Create(0, Height, 0);
+      Context.DrawLine(StartPoint, EndPoint, 1, DEFAULT_GRID_COLOR);
+    end;
+
+
+  for I := 1 to NumTicks - 1 do
+    begin
+      StartPoint := Ref +  TPoint3D.Create(0, -HeightBlock*I, 0);
+      EndPoint := StartPoint +  TPoint3D.Create(0, 0, Depth);
+      Context.DrawLine(StartPoint, EndPoint, 1, DEFAULT_GRID_COLOR);
+    end;
+
+end;
+
+
+begin
+  WidthBlock := BAR_WIDTH + 2*BAR_PAD;
+  HeightBlock := YZPlane.Height/NumTicks;
+
+  CenterPoint := TPoint3D.Create(YZPlane.Width/2, YZPlane.Height/2, 0);
+  TopLeft := TPoint3D.Create(YZPlane.Width/2, YZPlane.Height/2, -YZPlane.Depth/2);
+  DrawGrid(CenterPoint + TopLeft);
+
+  {
+  TopLeft := TPoint3D.Create(-XZPlane.Width/2, XZPlane.Height/2, XZPlane.Depth/2);
+  DrawGrid(CenterPoint + TopLeft);
+  }
+
+  Context.DrawCube(CenterPoint, TPoint3D.Create(YZPlane.Width, YZPlane.Height, YZPlane.Depth), 1, DEFAULT_GRID_COLOR);
+end;
+
+
+
+procedure TMainContainer.CreateXZPlane;
+begin
+  XZPlane := TRectangle3D.Create(Self);
+  XZPlane.MaterialBackSource := ColorPlane;
+  XZPlane.MaterialShaftSource := ColorPlane;
+  XZPlane.MaterialSource := ColorPlane;
+  XZPlane.Parent := Self;
+  XZPlane.HitTest := false;
+  XZPlane.Opacity := PLANE_OPACITY;
+end;
+
+procedure TMainContainer.XZPlaneRender(Sender: TObject; Context: TContext3D);
+var
+  StartPoint, EndPoint, TopLeft, CenterPoint: TPoint3D;
+  WidthBlock, HeightBlock: Single;
+
+procedure DrawGrid(Ref: TPoint3D);
+var
+  I: Integer;
+begin
+  for I := 1 to BarContainer.ColCount - 1 do
+    begin
+      StartPoint := Ref +  TPoint3D.Create(WidthBlock*I, 0, 0);
+      EndPoint := StartPoint - TPoint3D.Create(0, Height, 0);
+      Context.DrawLine(StartPoint, EndPoint, 1, DEFAULT_GRID_COLOR);
+    end;
+
+  for I := 1 to NumTicks - 1 do
+    begin
+      StartPoint := Ref +  TPoint3D.Create(0, -HeightBlock*I, 0);
+      EndPoint := StartPoint +  TPoint3D.Create(Width, 0, 0);
+      Context.DrawLine(StartPoint, EndPoint, 1, DEFAULT_GRID_COLOR);
+    end;
+end;
+
+
+begin
+  WidthBlock := BAR_WIDTH + 2*BAR_PAD;
+  HeightBlock := XZPlane.Height/NumTicks;
+
+  CenterPoint := TPoint3D.Create(XZPlane.Width/2, XZPlane.Height/2, 0);
+  TopLeft := TPoint3D.Create(-XZPlane.Width/2, XZPlane.Height/2, -XZPlane.Depth/2);
+  DrawGrid(CenterPoint + TopLeft);
+
+  {
+  TopLeft := TPoint3D.Create(-XZPlane.Width/2, XZPlane.Height/2, XZPlane.Depth/2);
+  DrawGrid(CenterPoint + TopLeft);
+  }
+
+  Context.DrawCube(CenterPoint, TPoint3D.Create(XZPlane.Width, XZPlane.Height, XZPlane.Depth), 1, DEFAULT_GRID_COLOR);
+end;
+
+
+procedure TMainContainer.CreateXYPlane;
+begin
+  XYPlane := TRectangle3D.Create(Self);
   XYPlane.MaterialBackSource := ColorPlane;
   XYPlane.MaterialShaftSource := ColorPlane;
   XYPlane.MaterialSource := ColorPlane;
   XYPlane.Parent := Self;
   XYPlane.HitTest := false;
   XYPlane.Opacity := PLANE_OPACITY;
-  XYPlane.OnRender := XYPlaneRender;
 end;
+
 
 procedure TMainContainer.XYPlaneRender(Sender: TObject; Context: TContext3D);
 var
@@ -167,19 +331,68 @@ end;
 
 procedure TMainContainer.MainRender(Sender: TObject; Context: TContext3D);
 begin
-  Context.DrawCube(TPoint3D.Zero, TPoint3D.Create(Width, Height, Depth), 1, claWhite);
+  //Context.DrawCube(TPoint3D.Zero, TPoint3D.Create(Width, Height, Depth), 1, DEFAULT_GRID_COLOR);
 end;
 
 constructor TBarContainer.Create(AOwner: TComponent);
 begin
   inherited;
-  RowCount := DEFAULT_ROWCOUNT;
-  ColCount := DEFAULT_COLCOUNT;
+  FRowCount := DEFAULT_ROWCOUNT;
+  FColCount := DEFAULT_COLCOUNT;
   DataMin := MaxSingle;
   DataMax := MinSingle;
 end;
 
-procedure TBarContainer.CreateBar(row, col: Integer; Value: Single);
+constructor TBar.Create(AOwner: TComponent);
+begin
+  inherited;
+
+end;
+
+procedure TBar.MainRender(Sender: TObject; Context: TContext3D);
+begin
+ // Context.DrawCube(TPoint3D.Zero, TPoint3D.Create(Width, Height, Depth), 1, claBlack);
+end;
+
+procedure TBar.SetPosition(RowCount, ColCount: Integer);
+var
+  RefPoint, TopLeft: TPoint3D;
+  WB, DB: Single;
+begin
+  WB := BAR_WIDTH + 2*BAR_PAD;
+  DB := BAR_DEPTH + 2*BAR_PAD;
+  RefPoint := TPoint3D.Create(-ColCount*WB/2, 0, RowCount*DB/2);
+  TopLeft := TPoint3D.Create(col*WB, 0, -row*DB);
+  Position.Point := RefPoint + TopLeft + TPoint3D.Create(WB/2, -Height/2, -DB/2);
+end;
+
+procedure TBarContainer.UpdatePositions;
+var
+  I: Integer;
+  bar: TBar;
+begin
+  for I := 0 to ComponentCount - 1 do
+    if Components[I] is TBar then
+      begin
+        bar := Components[I] as TBar;
+        bar.SetPosition(RowCount, ColCount);
+      end;
+end;
+
+function TBarContainer.IndexOf(row, col: Integer): TBar;
+var
+  comp: TComponent;
+  s: String;
+begin
+  s := Format('Bar_%d_%d', [row, col]);
+  comp := FindComponent(s);
+  if (comp <> Nil) and (comp is TBar) then
+    Result := comp as TBar
+  else
+    Result := Nil;
+end;
+
+procedure TBarContainer.CreateBar(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
 var
   bar: TBar;
   mat:  TLightMaterialSource;
@@ -190,34 +403,69 @@ begin
   bar.Parent := Self;
   bar.row := row;
   bar.col := col;
+  bar.color := cl;
   bar.val := value;
   bar.Opacity := 1.0;
 
-  //bar.Position.X := -0.5*DX*GRIDSX + x*DX + 0.5*DX;
-  //bar.Position.Y := -0.5*cylinder.Height; // Normaly origin is the center, lets set origin to base
-  //bar.Position.Z := -0.5*DX*GRIDSY + y*DY + 0.5*DY;
+  bar.Width := BAR_WIDTH;
+  bar.Depth := BAR_DEPTH;
+  bar.Height := Value/Scale;
+  bar.SetPosition(RowCount, ColCount);
 
   mat := TLightMaterialSource.Create(self);
-  mat.Shininess := 00;
-  mat.Ambient := claBlue;
-  mat.Emissive := $00;
-  mat.Specular := $00;
+  mat.Shininess := 10;
+  mat.Ambient := cl;
+  mat.Emissive := cl;
+  mat.Specular := cl;
 
+  bar.MaterialSource := mat;
   bar.HitTest := false;
   bar.EndUpdate;
   bar.Repaint;
 end;
 
-procedure TBarContainer.Add(row, col: Integer; Value: Single);
+procedure TBarContainer.SetRowCount(val: Integer);
 begin
-  RowCount := Max(RowCount, row + 1);
-  ColCount := Max(ColCount, col + 1);
-  DataMin := Min(DataMin, value);
-  DataMax := Max(DataMax, value);
-  CreateBar(row, col, Value);
+  if val <> FRowCount then
+    begin
+      FRowCount := val;
+      if Assigned(FOnUpdate) then FOnUpdate;
+      UpdatePositions;
+    end;
 end;
 
+procedure TBarContainer.SetColCount(val: Integer);
+begin
+  if val <> FColCount then
+    begin
+      FColCount := val;
+      if Assigned(FOnUpdate) then FOnUpdate;
+      UpdatePositions;
+    end;
+end;
 
+procedure TBarContainer.Add(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
+var
+  bar: TBar;
+begin
+  bar := IndexOf(row, col);
+  if (bar <> Nil) and (bar.val <> Value) then
+    begin
+      bar.val := Value;
+      bar.Height := Value/Scale;
+      bar.SetPosition(RowCount, ColCount);
+      DataMin := Min(DataMin, value);
+      DataMax := Max(DataMax, value);
+    end
+  else
+    begin
+      RowCount := Max(RowCount, row + 1);
+      ColCount := Max(ColCount, col + 1);
+      DataMin := Min(DataMin, value);
+      DataMax := Max(DataMax, value);
+      CreateBar(row, col, Value, cl);
+    end;
+end;
 
 constructor T3DBarGraph.Create(AOwner: TComponent);
 begin
@@ -239,6 +487,36 @@ begin
 
 
   Camera := FrontCamera;
+
+
+  LeftLight := TLight.Create(self);
+  LeftLight.LightType := TLightType.Point;
+  LeftLight.Parent := Self;
+  LeftLight.Position.X := -8;
+  LeftLight.Position.Y := 0;
+  LeftLight.Position.Z := 0;
+
+
+  {
+  LeftLight.RotationAngle.X := 320;
+  LeftLight.RotationAngle.Y := 95;
+  LeftLight.RotationAngle.Z := 321;
+   }
+
+
+  RightLight := TLight.Create(self);
+  RightLight.LightType := TLightType.Point;
+  RightLight.Parent := Self;
+  RightLight.Position.X := 8;
+  RightLight.Position.Y := 0;
+  RightLight.Position.Z := 8;
+
+  {
+  LeftLight.RotationAngle.X := 320;
+  LeftLight.RotationAngle.Y := 290;
+  LeftLight.RotationAngle.Z := 321;
+  }
+
   InitMouseEvents;
 end;
 
@@ -280,15 +558,9 @@ begin
   if(Status = 'MouseMove') then Status := 'static';
 end;
 
-procedure T3DBarGraph.Plot;
+procedure T3DBarGraph.Add(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
 begin
-  //
-
-end;
-
-procedure T3DBarGraph.Add(row, col: Integer; Value: Single);
-begin
-  Stage.BarContainer.Add(row, col, Value);
+  Stage.BarContainer.Add(row, col, Value, cl);
 end;
 
 destructor T3DBarGraph.Destroy;

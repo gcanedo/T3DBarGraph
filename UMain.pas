@@ -68,7 +68,6 @@ type
     procedure Viewport3D1MouseWheel(Sender: TObject; Shift: TShiftState;
       WheelDelta: Integer; var Handled: Boolean);
     procedure Dummy1Render(Sender: TObject; Context: TContext3D);
-    procedure Button2Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -175,13 +174,24 @@ begin
   BarGraph.Height := 480;
   BarGraph.Position.X := 568;
   BarGraph.Position.Y := 16;
-end;
 
-procedure TMainForm.Button2Click(Sender: TObject);
-begin
-  //BarGraph.FrontCamera.Position.Z := -20;
+  BarGraph.Add(0, 0, 14, claGreen);
+  BarGraph.Add(1, 0, 14, claPurple);
+  BarGraph.Add(2, 0, 14, claRed);
 
-  BarGraph.Plot;
+  BarGraph.Add(0, 1, 25, claGreen);
+  BarGraph.Add(1, 1, 25, claPurple);
+  BarGraph.Add(2, 1, 25, claRed);
+
+  BarGraph.Add(0, 2, 10, claGreen);
+  BarGraph.Add(1, 2, 10, claPurple);
+  BarGraph.Add(2, 2, 10, claRed);
+
+  BarGraph.Add(0, 3, 5, claGreen);
+  BarGraph.Add(1, 3, 5, claPurple);
+  BarGraph.Add(2, 3, 5, claRed);
+
+
 end;
 
 

@@ -109,7 +109,6 @@ object MainForm: TMainForm
     Position.Y = 536.000000000000000000
     TabOrder = 4
     Text = 'Plot'
-    OnClick = Button2Click
   end
   object ColorMaterialSource1: TColorMaterialSource
     Color = claSkyblue
