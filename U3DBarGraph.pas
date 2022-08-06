@@ -4,7 +4,7 @@ interface
   uses
     FMX.Viewport3D, System.Classes, FMX.Objects3D, Math, System.SysUtils,
     FMX.MaterialSources, System.UIConsts, FMX.Types3D, System.Math.Vectors,
-    System.UITypes, FMX.Controls3D, System.Types;
+    System.UITypes, FMX.Controls3D, System.Types, FMX.Ani;
 
   const
     BAR_PAD = 0.25;
@@ -19,9 +19,11 @@ interface
     PLANE_DEPTH = 0.001;
     PLANE_OPACITY = 0.9;
 
-    DEFAULT_NUMTICKS = 6;
-    DEFAULT_ZMIN = 0;
+    DEFAULT_NUMTICKS = 10;
+    DEFAULT_ZMIN = -30;
     DEFAULT_ZMAX = 30;
+
+    DURATION_CAMERA_CHANGE_VIEW_PLANE = 0.5;
 
   type
     TOnUpdateEvent = procedure of object;
@@ -96,6 +98,10 @@ interface
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
         procedure Add(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
+
+        procedure ViewNegativePlane;
+        procedure ViewPositivePlane;
+        procedure SetStateRotationAngle(ang: TPoint3D);
       published
     end;
 
@@ -164,8 +170,10 @@ begin
   XYPlane.Depth := Depth;
   XYPlane.Height := PLANE_DEPTH;
   XYPlane.Position.X := 0;
-  XYPlane.Position.Y := 0;
+  XYPlane.Position.Y := Height/2 + DEFAULT_ZMIN/BarContainer.Scale;
   XYPlane.Position.Z := 0;
+
+  BarContainer.Position.Y := XYPlane.Position.Y;
 end;
 
 procedure TMainContainer.CreateYZPlane;
@@ -358,12 +366,14 @@ procedure TBar.SetPosition(RowCount, ColCount: Integer);
 var
   RefPoint, TopLeft: TPoint3D;
   WB, DB: Single;
+  DH: Single;
 begin
   WB := BAR_WIDTH + 2*BAR_PAD;
   DB := BAR_DEPTH + 2*BAR_PAD;
   RefPoint := TPoint3D.Create(-ColCount*WB/2, 0, RowCount*DB/2);
   TopLeft := TPoint3D.Create(col*WB, 0, -row*DB);
-  Position.Point := RefPoint + TopLeft + TPoint3D.Create(WB/2, -Height/2, -DB/2);
+  if val >= 0 then DH := -Height/2 else DH := Height/2;
+  Position.Point := RefPoint + TopLeft + TPoint3D.Create(WB/2, DH, -DB/2);
 end;
 
 procedure TBarContainer.UpdatePositions;
@@ -371,10 +381,10 @@ var
   I: Integer;
   bar: TBar;
 begin
-  for I := 0 to ComponentCount - 1 do
-    if Components[I] is TBar then
+  for I := 0 to ChildrenCount - 1 do
+    if Children[I] is TBar then
       begin
-        bar := Components[I] as TBar;
+        bar := Children[I] as TBar;
         bar.SetPosition(RowCount, ColCount);
       end;
 end;
@@ -409,7 +419,7 @@ begin
 
   bar.Width := BAR_WIDTH;
   bar.Depth := BAR_DEPTH;
-  bar.Height := Value/Scale;
+  bar.Height := Abs(Value/Scale);
   bar.SetPosition(RowCount, ColCount);
 
   mat := TLightMaterialSource.Create(self);
@@ -452,7 +462,7 @@ begin
   if (bar <> Nil) and (bar.val <> Value) then
     begin
       bar.val := Value;
-      bar.Height := Value/Scale;
+      bar.Height := Abs(Value/Scale);
       bar.SetPosition(RowCount, ColCount);
       DataMin := Min(DataMin, value);
       DataMax := Max(DataMax, value);
@@ -465,6 +475,46 @@ begin
       DataMax := Max(DataMax, value);
       CreateBar(row, col, Value, cl);
     end;
+end;
+
+procedure T3DBarGraph.ViewNegativePlane;
+begin
+  TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.X', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
+  TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.Y', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
+  TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.Z', 180, DURATION_CAMERA_CHANGE_VIEW_PLANE);
+
+  TAnimator.AnimateFloat(FrontCamera, 'Position.X', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
+  TAnimator.AnimateFloat(FrontCamera, 'Position.Y', Stage.Height/2, DURATION_CAMERA_CHANGE_VIEW_PLANE);
+
+  SetStateRotationAngle(TPoint3D.Create(0, 45, 0));
+end;
+
+procedure T3DBarGraph.ViewPositivePlane;
+begin
+  TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.X', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
+  TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.Y', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
+  TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.Z', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
+
+  TAnimator.AnimateFloat(FrontCamera, 'Position.X', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
+  TAnimator.AnimateFloat(FrontCamera, 'Position.Y', -Stage.Height/2, DURATION_CAMERA_CHANGE_VIEW_PLANE);
+
+  SetStateRotationAngle(TPoint3D.Create(0, 45, 0));
+end;
+
+procedure T3DBarGraph.SetStateRotationAngle(ang: TPoint3D);
+var
+  t: Single;
+begin
+  t := DURATION_CAMERA_CHANGE_VIEW_PLANE/2;
+
+  TAnimator.AnimateFloat(Stage, 'RotationAngle.X', 0, t/2);
+  TAnimator.AnimateFloat(Stage, 'RotationAngle.Y', 0, t/2);
+  TAnimator.AnimateFloat(Stage, 'RotationAngle.Z', 0, t/2);
+
+
+  TAnimator.AnimateFloatDelay(Stage, 'RotationAngle.X', ang.X, t, t);
+  TAnimator.AnimateFloatDelay(Stage, 'RotationAngle.Y', ang.Y, t, t);
+  TAnimator.AnimateFloatDelay(Stage, 'RotationAngle.Z', ang.Z, t, t);
 end;
 
 constructor T3DBarGraph.Create(AOwner: TComponent);

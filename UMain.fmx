@@ -33,7 +33,7 @@ object MainForm: TMainForm
         RotationAngle.X = 90.000000000000000000
         Width = 5.000000000000000000
         Height = 5.000000000000000000
-        Depth = 0.000099999997473788
+        Depth = 0.200000002980232200
         CornerType = Round
         Flatness = 0.050000000745058060
         Sides = [Front, Back, Shaft]
@@ -41,6 +41,20 @@ object MainForm: TMainForm
         MaterialShaftSource = ColorMaterialSource1
         MaterialSource = ColorMaterialSource1
         Quanternion = '(0.70710676908493,0,0,0.70710676908493)'
+        object TextLayer3D1: TTextLayer3D
+          Color = claBrown
+          Font.Family = 'Arial'
+          Font.Size = 16.000000000000000000
+          Font.StyleExt = {00070000000000000004000000}
+          Height = 4.000000000000000000
+          HitTest = False
+          Position.Z = 0.100100003182888000
+          Resolution = 50
+          RotationAngle.X = 180.000000000000000000
+          Width = 8.000000000000000000
+          OnPaint = TextLayer3D1Paint
+          Quanternion = '(1,0,0,-4.37113882867379E-8)'
+        end
       end
     end
     object Light1: TLight
@@ -105,10 +119,14 @@ object MainForm: TMainForm
     Top = 552
   end
   object Button2: TButton
-    Position.X = 824.000000000000000000
-    Position.Y = 536.000000000000000000
+    Position.X = 656.000000000000000000
+    Position.Y = 528.000000000000000000
+    Size.Width = 144.000000000000000000
+    Size.Height = 22.000000000000000000
+    Size.PlatformDefault = False
     TabOrder = 4
-    Text = 'Plot'
+    Text = 'View Negative Plane'
+    OnClick = Button2Click
   end
   object ColorMaterialSource1: TColorMaterialSource
     Color = claSkyblue

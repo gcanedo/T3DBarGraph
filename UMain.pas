@@ -7,7 +7,8 @@ uses
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Viewport3D,
   System.Math.Vectors, FMX.Controls3D, FMX.Objects3D, FMX.Types3D,
   FMX.MaterialSources, Math, FMX.Memo.Types, FMX.Controls.Presentation,
-  FMX.ScrollBox, FMX.Memo, FMX.StdCtrls, System.UIConsts, U3DBarGraph;
+  FMX.ScrollBox, FMX.Memo, FMX.StdCtrls, System.UIConsts, U3DBarGraph,
+  FMX.Layers3D;
 
 Type
   TInfoCell = record
@@ -56,6 +57,7 @@ type
     Rectangle3D1: TRectangle3D;
     ColorMaterialSource1: TColorMaterialSource;
     Button2: TButton;
+    TextLayer3D1: TTextLayer3D;
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
@@ -68,6 +70,9 @@ type
     procedure Viewport3D1MouseWheel(Sender: TObject; Shift: TShiftState;
       WheelDelta: Integer; var Handled: Boolean);
     procedure Dummy1Render(Sender: TObject; Context: TContext3D);
+    procedure Button2Click(Sender: TObject);
+    procedure TextLayer3D1Paint(Sender: TObject; Canvas: TCanvas;
+      const ARect: TRectF);
   private
     { Private declarations }
   public
@@ -129,6 +134,22 @@ begin
 end;
 
 
+procedure TMainForm.Button2Click(Sender: TObject);
+begin
+
+   if Button2.Text = 'View Negative Plane' then
+     begin
+       Button2.Text := 'View Positive Plane';
+       BarGraph.ViewNegativePlane;
+     end
+   else
+     begin
+       Button2.Text := 'View Negative Plane';
+       BarGraph.ViewPositivePlane;
+     end;
+
+end;
+
 procedure TMainForm.CreateCylinder(x, y: Integer; value: Single; cla: TAlphaColor);
 var
   cylinder: TCylinder;
@@ -175,7 +196,7 @@ begin
   BarGraph.Position.X := 568;
   BarGraph.Position.Y := 16;
 
-  BarGraph.Add(0, 0, 14, claGreen);
+  BarGraph.Add(0, 0, -14, claGreen);
   BarGraph.Add(1, 0, 14, claPurple);
   BarGraph.Add(2, 0, 14, claRed);
 
@@ -189,9 +210,9 @@ begin
 
   BarGraph.Add(0, 3, 5, claGreen);
   BarGraph.Add(1, 3, 5, claPurple);
-  BarGraph.Add(2, 3, 5, claRed);
+  BarGraph.Add(2, 3, -5, claRed);
 
-
+  BarGraph.Add(3, 3, -5, claRed);
 end;
 
 
@@ -225,6 +246,26 @@ begin
          Memo1.Lines.Add(IntToStr(i) + ',' +  IntToStr(j) + ' = ' + FloatToStr(data[i][j]));
        end;
        }
+end;
+
+procedure TMainForm.TextLayer3D1Paint(Sender: TObject; Canvas: TCanvas;
+  const ARect: TRectF);
+
+var
+  Flags: TFillTextFlags;
+  b : tBrush;
+begin
+  //Flags := TFillTextFlag.RightToLeft;
+  //b := TBrush.Create(TBrushKind.Solid, claRed);
+ // b.Color := clared;
+ // Canvas.Fill := TBrush.Create(TBrushKind.Solid, claRed);
+
+ Canvas.Fill.Color := claYellow;
+ Canvas.FillRect(ARect, 0, 0, [], 1, TCornerType.Round);
+
+
+ Canvas.Fill.Color := claBlue;
+ Canvas.FillText(ARect, 'ESTE ES UN TEXTO', false, 1, Flags, TTextAlign.Center, TTextAlign.Center);
 end;
 
 procedure TMainForm.Viewport3D1MouseDown(Sender: TObject; Button: TMouseButton;
