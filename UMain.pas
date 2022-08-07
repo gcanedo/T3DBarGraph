@@ -193,6 +193,9 @@ begin
   BarGraph.Parent := Self;
   BarGraph.Width := 640;
   BarGraph.Height := 480;
+  BarGraph.ZLabel := 'MEAN TEMPERATURE';
+
+
   BarGraph.Position.X := 568;
   BarGraph.Position.Y := 16;
 
