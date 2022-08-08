@@ -21,6 +21,9 @@ interface
     DEFAULT_BACKGROUND_COLOR = claBlack;
 
     DEFAULT_PLANE_COLOR = claWhite;
+    DEFAULT_XYPLANE_COLOR = claAntiquewhite;
+
+
     DEFAULT_GRID_COLOR = claRed;
     PLANE_DEPTH = 0.001;
     PLANE_OPACITY = 1;
@@ -70,21 +73,23 @@ interface
 
     TPanelTicks = class(TRectangle3D)
       public
-        Front, ZLabel: TTextLayer3D;
+        Front, ZLabelTop, ZLabelBottom: TTextLayer3D;
         Stg: TMainContainer;
         StartNum: TPointF;
         constructor Create(AOwner: TComponent); override;
-        procedure Resize;
+        procedure SetPosition(RefPlane: TRectangle3D);
+        procedure SetPositionLeft(RefPlane: TRectangle3D);
         procedure FrontPaint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
         procedure FrontPaint180(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
         function  UnitsToPixels(u: Single): Single;
-        procedure Positive;
-        procedure Negative;
+        procedure ShowPositiveSpace;
+        procedure ShowNegativeSpace;
         function GetWidthMax(c: TCanvas): Single;
+        procedure tempPaint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
     end;
 
     TMainContainer = class(TDummy)
-        ColorPlane: TColorMaterialSource;
+        ColorPlane, ColorPlaneXY: TColorMaterialSource;
       protected
         procedure MainRender(Sender: TObject; Context: TContext3D);
         procedure XYPlaneRender(Sender: TObject; Context: TContext3D);
@@ -98,7 +103,7 @@ interface
         procedure ResizeBordersL(Q: TRectangle3D);
       public
         XYPlane, XZPlane, YZPlane: TRectangle3D;
-        PanelRightTicks: TPanelTicks;
+        PanelRightTicks, PanelLeftTicks: TPanelTicks;
         origin: TSphere;
         BarContainer: TBarContainer;
         HalfPlaneHeight: Single;
@@ -161,35 +166,61 @@ begin
   Front.HitTest := false;
   Front.Resolution := 100;
 
-  ZLabel := TTextLayer3D.Create(Self);
-  ZLabel.Parent := Self;
-  ZLabel.Text := Stg.FZLabel;
-  ZLabel.HitTest := false;
-  ZLabel.Resolution := 100;
-  ZLabel.RotationAngle.Z := -90;
-  Zlabel.Color := FONT_COLOR_AXIS;
-  Zlabel.Font.Size := ZLabel.Resolution*PANEL_PAD;
+  ZLabelTop := TTextLayer3D.Create(Self);
+  ZLabelTop.Parent := Self;
+  ZLabelTop.Text := Stg.FZLabel;
+  ZLabelTop.HitTest := false;
+  ZLabelTop.Resolution := 100;
+  ZLabelTop.RotationAngle.Z := -90;
+  ZlabelTop.Color := FONT_COLOR_AXIS;
+  ZlabelTop.Font.Size := ZLabelTop.Resolution*PANEL_PAD;
 
-  Positive;
+
+  ZLabelBottom := TTextLayer3D.Create(Self);
+  ZLabelBottom.Parent := Self;
+  ZLabelBottom.Text := Stg.FZLabel;
+  ZLabelBottom.HitTest := false;
+  ZLabelBottom.Resolution := 100;
+  ZLabelBottom.RotationAngle.Z := -90;
+  ZlabelBottom.Color := FONT_COLOR_AXIS;
+  ZlabelBottom.Font.Size := ZLabelBottom.Resolution*PANEL_PAD;
 end;
 
-procedure TPanelTicks.Positive;
+procedure TPanelTicks.ShowPositiveSpace;
 begin
   StartNum.X := DEFAULT_ZMIN;
   StartNum.Y := 1;
 
-  Front.OnPaint := FrontPaint;
-  Front.RotationAngle.Z := 0;
+  if tag = 1 then
+    begin
+      Front.OnPaint := FrontPaint;
+      Front.RotationAngle.Z := 0;
+    end
+  else
+    begin
+      Front.OnPaint := FrontPaint180;
+      Front.RotationAngle.Z := 0;
+    end;
+
   Front.Invalidate;
 end;
 
-procedure TPanelTicks.Negative;
+procedure TPanelTicks.ShowNegativeSpace;
 begin
   StartNum.X := DEFAULT_ZMAX;
   StartNum.Y := -1;
 
-  Front.OnPaint := FrontPaint180;
-  Front.RotationAngle.Z := 180;
+  if tag = 1 then
+    begin
+      Front.OnPaint := FrontPaint180;
+      Front.RotationAngle.Z := 180;
+    end
+  else
+    begin
+      Front.OnPaint := FrontPaint;
+      Front.RotationAngle.Z := 180;
+    end;
+
   Front.Invalidate;
 end;
 
@@ -226,6 +257,7 @@ var
 begin
  // Canvas.Clear(MakeColor(DEFAULT_PLANE_COLOR, PLANE_OPACITY));
 
+
   RefY := UnitsToPixels(PANEL_PAD + Stg.XZPlane.Height);
   Canvas.Font.Size := UnitsToPixels(PANEL_PAD);
 
@@ -236,7 +268,8 @@ begin
   num := StartNum.X;
   for I := 0 to Stg.NumTicks do
     begin
-      RefX := UnitsToPixels(Front.Width);
+      RefX := ARect.Width;
+
       Canvas.Fill.Color := DEFAULT_GRID_COLOR;
       Canvas.Stroke.Color := DEFAULT_GRID_COLOR;
       w := UnitsToPixels(WIDTH_LINE_TICK);
@@ -254,6 +287,11 @@ begin
     end;
 end;
 
+procedure TPanelTicks.tempPaint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
+begin
+   Canvas.Clear(claBlue);
+end;
+
 procedure TPanelTicks.FrontPaint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
 var
   Flags: TFillTextFlags;
@@ -267,11 +305,9 @@ begin
 
   RefY := UnitsToPixels(PANEL_PAD + Stg.XZPlane.Height);
   Canvas.Font.Size := UnitsToPixels(PANEL_PAD);
-
   dy := Stg.XZPlane.Height/Stg.NumTicks;
   DeltaNum := (DEFAULT_ZMAX - DEFAULT_ZMIN)/Stg.NumTicks;
   wmax := GetWidthMax(Canvas);
-
 
   num := StartNum.X;
   for I := 0 to Stg.NumTicks do
@@ -279,52 +315,90 @@ begin
       RefX := 0;
       Canvas.Fill.Color := DEFAULT_GRID_COLOR;
       Canvas.Stroke.Color := DEFAULT_GRID_COLOR;
-
       w := UnitsToPixels(WIDTH_LINE_TICK);
       Canvas.DrawLine(TPointF.Create(RefX, RefY), TPointF.Create(w, RefY), 1);
-
       RefX := w + UnitsToPixels(GAP_LINE_NUMBER);
-
       s := FloatToStr(num);
       H := Canvas.TextHeight(s);
-
       Canvas.Fill.Color := FONT_COLOR_AXIS;
-
       TopLeft.X := RefX;
       TopLeft.Y := RefY - H/2;
       R := TRectF.Create(TopLeft, wmax, H);
       Canvas.FillText(R, s, FALSE, 1, Flags, TTextAlign.Trailing, TTextAlign.Center);
-
       RefY := RefY - UnitsToPixels(dy);
       num := num + StartNum.Y*DeltaNum;
     end;
 end;
 
 
-procedure TPanelTicks.Resize;
+procedure TPanelTicks.SetPosition(RefPlane: TRectangle3D);
 begin
   Width := SIZE_PANEL_TICKS;
-  Height := Stg.XZPlane.Height + 2*PANEL_PAD;
-  Depth := Stg.XZPlane.Depth;
-  Position.Point := Stg.XZPlane.Position.Point + TPoint3D.Create(Stg.XZPlane.Width/2 + Width/2, 0, 0);
+  Height := RefPlane.Height + 2*PANEL_PAD;
+  Depth := RefPlane.Depth;
+  Position.Point := RefPlane.Position.Point + TPoint3D.Create(RefPlane.Width/2 + Width/2, 0, 0);
 
   Front.Width := Width*(1 - SIZE_LABEL);
   Front.Height := Height;
   Front.Position.Point := TPoint3D.Create(-Width/2 + Front.Width/2, 0, -Depth/2 - 0.001);
 
-  ZLabel.Text := Stg.FZLabel;
-  ZLabel.Width := Height;
-  ZLabel.Height := Width - Front.Width;
+  ZLabelTop.Text := Stg.FZLabel;
+  ZLabelTop.Width := Height/2;
+  ZLabelTop.Height := Width - Front.Width;
+  ZLabelTop.Position.Point := TPoint3D.Create(Width/2 - ZLabelTop.Height/2, -ZLabelTop.Width/2, -Depth/2 - 0.001);
 
-  ZLabel.Position.Point := TPoint3D.Create(Width/2 - ZLabel.Height/2, 0, -Depth/2 - 0.001);
+  ZLabelBottom.Text := Stg.FZLabel;
+  ZLabelBottom.Width := Height/2;
+  ZLabelBottom.Height := Width - Front.Width;
+  ZLabelBottom.Position.Point := TPoint3D.Create(Width/2 - ZLabelBottom.Height/2, ZLabelBottom.Width/2, -Depth/2 - 0.001);
+
+  tag := 1;
+  ShowPositiveSpace;
 end;
+
+procedure TPanelTicks.SetPositionLeft(RefPlane: TRectangle3D);
+begin
+  Width := RefPlane.Width;
+  Height := RefPlane.Height + 2*PANEL_PAD;
+  Depth := SIZE_PANEL_TICKS;
+  Position.Point := RefPlane.Position.Point + TPoint3D.Create(0, 0, -RefPlane.depth/2 - depth/2);
+
+  Front.Width := SIZE_PANEL_TICKS*(1 - SIZE_LABEL);
+  Front.Height := Height;
+  Front.RotationAngle.Y := -90;
+  Front.Position.Point := TPoint3D.Create(Width/2 + 0.001, 0, Depth/2 - Front.Width/2);
+
+  ZLabelTop.Text := Stg.FZLabel;
+  ZLabelTop.Width := Height/2;
+  ZLabelTop.Height := Depth - Front.Width;
+  ZLabelTop.RotationAngle.Z := 90;
+  ZLabelTop.RotationAngle.X := -90;
+  ZLabelTop.Position.Point := Front.Position.Point + TPoint3D.Create(0, -ZLabelTop.Width/2, -Front.Width/2 - ZLabelTop.height/2);
+
+  //ZLabelBottom.OnPaint := TempPaint;
+
+  ZLabelBottom.Text := Stg.FZLabel;
+  ZLabelBottom.Width := Height/2;
+  ZLabelBottom.Height := Depth - Front.Width;
+  ZLabelBottom.RotationAngle.Z := 90;
+  ZLabelBottom.RotationAngle.X := -90;
+  ZLabelBottom.Position.Point := ZLabelTop.Position.Point + TPoint3D.Create(0, ZLabelTop.Width, 0);
+
+  tag := -1;
+  ShowPositiveSpace;
+end;
+
 
 constructor TMainContainer.Create(AOwner: TComponent);
 begin
   inherited;
+  HitTest := false;
+
   NumTicks := DEFAULT_NUMTICKS;
   FZLabel := '';
 
+  ColorPlaneXY := TColorMaterialSource.Create(Self);
+  ColorPlaneXY.Color := DEFAULT_XYPLANE_COLOR;
   ColorPlane := TColorMaterialSource.Create(Self);
   ColorPlane.Color := DEFAULT_PLANE_COLOR;
 
@@ -350,6 +424,9 @@ begin
   PanelRightTicks := TPanelTicks.Create(Self);
   PanelRightTicks.HitTest := false;
 
+  PanelLeftTicks := TPanelTicks.Create(Self);
+  PanelLeftTicks.HitTest := false;
+
   ResizePlanes;
 
   XZPlane.OnRender := XZPlaneRender;
@@ -374,7 +451,7 @@ begin
   XZPlane.Position.Z := Depth/2 + XZPlane.Depth/2;
 
   ResizeBordersR(XZPlane);
-  PanelRightTicks.Resize;
+  PanelRightTicks.SetPosition(XZPlane);
 
   YZPlane.Width := PLANE_DEPTH;
   YZPlane.Depth := Depth;
@@ -383,6 +460,9 @@ begin
   YZPlane.Position.Y := 0;
   YZPlane.Position.Z := 0;
   ResizeBordersL(YZPlane);
+
+  PanelLeftTicks.SetPositionLeft(YZPlane);
+
 
   XYPlane.Width := Width;
   XYPlane.Depth := Depth;
@@ -564,10 +644,11 @@ end;
 
 procedure TMainContainer.CreateXYPlane;
 begin
+
   XYPlane := TRectangle3D.Create(Self);
-  XYPlane.MaterialBackSource := ColorPlane;
-  XYPlane.MaterialShaftSource := ColorPlane;
-  XYPlane.MaterialSource := ColorPlane;
+  XYPlane.MaterialBackSource := ColorPlaneXY;
+  XYPlane.MaterialShaftSource := ColorPlaneXY;
+  XYPlane.MaterialSource := ColorPlaneXY;
   XYPlane.Parent := Self;
   XYPlane.HitTest := false;
   XYPlane.Opacity := PLANE_OPACITY;
@@ -755,7 +836,8 @@ end;
 
 procedure T3DBarGraph.ViewNegativePlane;
 begin
-  Stage.PanelRightTicks.Negative;
+  Stage.PanelRightTicks.ShowNegativeSpace;
+  Stage.PanelLeftTicks.ShowNegativeSpace;
 
   TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.X', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
   TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.Y', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
@@ -769,15 +851,13 @@ end;
 
 procedure T3DBarGraph.ViewPositivePlane;
 begin
-  Stage.PanelRightTicks.Positive;
-
+  Stage.PanelRightTicks.ShowPositiveSpace;
+  Stage.PanelLeftTicks.ShowPositiveSpace;
   TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.X', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
   TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.Y', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
   TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.Z', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
-
   TAnimator.AnimateFloat(FrontCamera, 'Position.X', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
   TAnimator.AnimateFloat(FrontCamera, 'Position.Y', -Stage.Height/2, DURATION_CAMERA_CHANGE_VIEW_PLANE);
-
   SetStateRotationAngle(TPoint3D.Create(0, 45, 0));
 end;
 
@@ -823,6 +903,7 @@ begin
   FrontCamera := TCamera.Create(self);
   FrontCamera.Parent := Self;
   FrontCamera.Target := Stage;
+
   FrontCamera.Position.X := 0;
   FrontCamera.Position.Z := -10;
   FrontCamera.Position.Y := -Stage.Height/2;
@@ -891,7 +972,7 @@ procedure T3DBarGraph.MouseMove(Sender: TObject; Shift: TShiftState; X, Y: Singl
 begin
   if(Status = 'MouseMove') then
     begin
-      Stage.RotationAngle.X := Pos3D.X + (Y-PosMouse.Y)*0.4;
+      Stage.RotationAngle.X := Pos3D.X + (Y - PosMouse.Y)*0.4;
       Stage.RotationAngle.Y := Pos3D.Y + (PosMouse.X - X)*0.4;
       Stage.RotationAngle.Z := Pos3D.Z - 0.4*((PosMouse.X-X)-(Y-PosMouse.Y));
     end;
