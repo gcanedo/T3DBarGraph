@@ -58,6 +58,7 @@ type
     ColorMaterialSource1: TColorMaterialSource;
     Button2: TButton;
     TextLayer3D1: TTextLayer3D;
+    TextLayer3D2: TTextLayer3D;
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
@@ -194,6 +195,7 @@ begin
   BarGraph.Width := 640;
   BarGraph.Height := 480;
   BarGraph.ZLabel := 'MEAN TEMPERATURE';
+  BarGraph.YLabel := 'TIME PERIOD';
 
 
   BarGraph.Position.X := 568;
@@ -215,7 +217,9 @@ begin
   BarGraph.Add(1, 3, 5, claPurple);
   BarGraph.Add(2, 3, -5, claRed);
 
-  BarGraph.Add(3, 3, -5, claRed);
+  BarGraph.AddYLabel(0, '1987-1996');
+  BarGraph.AddYLabel(1, '1937-1946');
+  BarGraph.AddYLabel(2, '1887-1896');
 end;
 
 

@@ -100,6 +100,12 @@ object MainForm: TMainForm
       Height = 0.100000001490116100
       Depth = 0.100000001490116100
     end
+    object TextLayer3D2: TTextLayer3D
+      Color = claBlack
+      Height = 4.000000000000000000
+      Resolution = 50
+      Width = 8.000000000000000000
+    end
   end
   object Button1: TButton
     Position.X = 248.000000000000000000
