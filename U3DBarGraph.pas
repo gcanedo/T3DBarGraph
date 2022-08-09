@@ -10,6 +10,7 @@ interface
   const
     PANEL_PAD = 0.125;
     WIDTH_LINE_TICK = 0.125;
+    HEIGHT_LINE_TICK = 0.01;
     GAP_LINE_NUMBER = 0.0625;
     FONT_COLOR_AXIS = claBlack;
 
@@ -29,8 +30,8 @@ interface
     PLANE_OPACITY = 1;
 
     DEFAULT_NUMTICKS = 10;
-    DEFAULT_ZMIN = -30;
     DEFAULT_ZMAX = 30;
+    DEFAULT_ZMIN = -20;
 
     DURATION_CAMERA_CHANGE_VIEW_PLANE = 0.5;
     SIZE_PANEL_TICKS = 1;
@@ -40,8 +41,24 @@ interface
     TMainContainer = class;
     TOnUpdateEvent = procedure of object;
 
-    TBar = class(TCube)
+    TInfoCell = record
+      pos: Integer;
+      Text: String;
+    end;
 
+    TListBlocks = Array of TInfoCell;
+    TInfoAxis = class(TObject)
+      blockCount: Integer;
+      blocks: TListBlocks;
+      public
+        constructor Create;
+        procedure Add(pos: Integer; value: String);
+        function IndexOf(pos: Integer): Integer;
+        procedure CreateDefaultBlocks(N: Integer);
+    end;
+
+
+    TBar = class(TCube)
       private
         procedure SetPosition(RowCount, ColCount: Integer);
         procedure MainRender(Sender: TObject; Context: TContext3D);
@@ -70,6 +87,31 @@ interface
         function IndexOf(row, col: Integer): TBar;
     end;
 
+    TSticker = class(TTextLayer3D)
+      private
+        info: TInfoAxis;
+      public
+        procedure Paint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
+        constructor Create(AOwner: TComponent); override;
+        procedure Init(AInfo: TInfoAxis);
+    end;
+
+    TGroupSticker = class(TDummy)
+      public
+        Sticker: TSticker;
+        Lb: TTextLayer3D;
+        constructor Create(AOwner: TComponent); override;
+        procedure Resize;
+    end;
+
+    TAxisYPanel = class(TDummy)
+      public
+        info: TInfoAxis;
+        TopSticker, BottomSticker: TGroupSticker;
+        Base: TRectangle3D;
+        constructor Create(AOwner: TComponent); override;
+        procedure Resize;
+    end;
 
     TPanelTicks = class(TRectangle3D)
       public
@@ -89,7 +131,10 @@ interface
     end;
 
     TMainContainer = class(TDummy)
+      private
         ColorPlane, ColorPlaneXY: TColorMaterialSource;
+
+
       protected
         procedure MainRender(Sender: TObject; Context: TContext3D);
         procedure XYPlaneRender(Sender: TObject; Context: TContext3D);
@@ -109,9 +154,15 @@ interface
         HalfPlaneHeight: Single;
         NumTicks: Integer;
         FZLabel: String;
+
+        DataYAxis: TInfoAxis;
+        DataXAxis: TInfoAxis;
+
+        AxisYPanel: TAxisYPanel;
         constructor Create(AOwner: TComponent); override;
         procedure ResizePlanes;
         procedure PanelPaint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
+        procedure AddYLabel(row: Integer);
     end;
 
     T3DBarGraph = class(TViewport3D)
@@ -147,6 +198,166 @@ interface
     end;
 
 implementation
+
+
+procedure TInfoAxis.CreateDefaultBlocks(N: Integer);
+var
+  I: Integer;
+  b: TInfoCell;
+begin
+  for I := 0 to N - 1 do
+    begin
+      b.pos := I;
+      b.Text := '';
+      blocks := blocks + [b];
+    end;
+  blockCount := N;
+end;
+
+constructor TInfoAxis.Create;
+begin
+  inherited;
+  blocks := [];
+  blockCount := 0;
+end;
+
+procedure TInfoAxis.Add(pos: Integer; value: String);
+var
+  k: Integer;
+  b: TInfoCell;
+begin
+  k := IndexOf(pos);
+  if k <> -1 then
+     blocks[k].Text := value
+  else
+    begin
+      b.pos := pos;
+      b.Text := value;
+      blocks := blocks + [b];
+      blockCount := Max(blockCount, pos + 1);
+    end;
+end;
+
+function TInfoAxis.IndexOf(pos: Integer): Integer;
+var
+  I: Integer;
+begin
+  for I := 0 to length(blocks) - 1 do
+    if blocks[I].pos = pos then Exit(I);
+  Result := -1;
+end;
+
+constructor TAxisYPanel.Create(AOwner: TComponent);
+var
+  ColorPlane: TColorMaterialSource;
+begin
+  inherited;
+
+  Tag := AOwner.Tag;
+  TopSticker := TGroupSticker.Create(Self);
+  TopSticker.Parent := Self;
+  Width := TopSticker.Width;
+
+  Base := TRectangle3D.Create(Self);
+  Base.Width := TopSticker.Width;
+  Base.Parent := Self;
+  ColorPlane := TColorMaterialSource.Create(Self);
+  ColorPlane.Color := DEFAULT_XYPLANE_COLOR;
+  Base.MaterialBackSource := ColorPlane;
+  Base.MaterialShaftSource := ColorPlane;
+  Base.MaterialSource := ColorPlane;
+  Base.HitTest := false;
+  Base.Opacity := PLANE_OPACITY;
+end;
+
+procedure TAxisYPanel.Resize;
+begin
+  Base.Height := Height;
+  Base.Depth := Depth;
+
+  TopSticker.Height := Depth;
+  TopSticker.Position.Z := -Height/2 - 0.001;
+  TopSticker.Resize;
+end;
+
+constructor TGroupSticker.Create(AOwner: TComponent);
+begin
+  inherited;
+  Tag := AOwner.Tag;
+  Width := SIZE_PANEL_TICKS;
+
+  Lb := TTextLayer3D.Create(Self);
+  Lb.Height := SIZE_LABEL;
+  Lb.Parent := Self;
+  Lb.HitTest := false;
+  Lb.Resolution := 100;
+  Lb.RotationAngle.Z := -90;
+  Lb.Color := FONT_COLOR_AXIS;
+  Lb.Font.Size := Lb.Resolution*PANEL_PAD;
+  Lb.Position.X := Width/2 - Lb.Height/2;
+
+  Sticker := TSticker.Create(Self);
+  Sticker.Width := Width - SIZE_LABEL;
+  Sticker.Parent := Self;
+  Sticker.Position.X := -Width/2 + Sticker.Width/2;
+  Sticker.HitTest := false;
+end;
+
+procedure TGroupSticker.Resize;
+begin
+  Lb.Width := Height;
+  Sticker.Height := Height;
+  Sticker.Invalidate;
+end;
+
+procedure TSticker.Init(AInfo: TInfoAxis);
+begin
+  info := AInfo;
+  OnPaint := Paint;
+end;
+
+procedure TSticker.Paint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
+var
+  PxHeightBlock, xRef, yRef, PxWidthBlock: Single;
+  I: Integer;
+  tickSizePx, TopLeft: TPointF;
+  R: TRectF;
+  b: TInfoCell;
+  Flags: TFillTextFlags;
+begin
+
+  Canvas.Clear(claYellow);
+  PxHeightBlock := ARect.Height/info.blockCount;
+  tickSizePx := TPointF.Create(WIDTH_LINE_TICK, HEIGHT_LINE_TICK)*Resolution;
+  Canvas.Fill.Color := DEFAULT_GRID_COLOR;
+  for I := 0 to info.BlockCount - 1 do
+    begin
+      yRef :=  PxHeightBlock*I;
+      TopLeft := TPointF.Create(0, yRef + (PxHeightBlock - tickSizePx.Y)/2);
+      R := TRectF.Create(TopLeft, tickSizePx.X, tickSizePx.Y);
+      Canvas.FillRect(R, 1);
+    end;
+
+  xRef := tickSizePx.X + GAP_LINE_NUMBER*Resolution;
+  PxWidthBlock := ARect.Width - xRef;
+  Canvas.Fill.Color := FONT_COLOR_AXIS;
+  for I := 0 to length(info.blocks) - 1 do
+    begin
+      b := info.blocks[I];
+      yRef :=  PxHeightBlock*b.pos;
+      TopLeft.X := xRef;
+      TopLeft.Y := yRef;
+      R := TRectF.Create(TopLeft, PxWidthBlock, PxHeightBlock);
+      Canvas.FillText(R, b.Text, True, 1, Flags, TTextAlign.Leading, TTextAlign.Center);
+    end;
+end;
+
+constructor TSticker.Create(AOwner: TComponent);
+begin
+  inherited;
+  HitTest := false;
+  Resolution := 100;
+end;
 
 constructor TPanelTicks.Create(AOwner: TComponent);
 begin
@@ -330,7 +541,6 @@ begin
     end;
 end;
 
-
 procedure TPanelTicks.SetPosition(RefPlane: TRectangle3D);
 begin
   Width := SIZE_PANEL_TICKS;
@@ -343,14 +553,21 @@ begin
   Front.Position.Point := TPoint3D.Create(-Width/2 + Front.Width/2, 0, -Depth/2 - 0.001);
 
   ZLabelTop.Text := Stg.FZLabel;
-  ZLabelTop.Width := Height/2;
+  ZLabelTop.Width := Stg.XZPlane.Height/2 + Stg.XYPlane.Position.Y;
+  ZLabelTop.Visible := ZLabelTop.Width > 0;
+
   ZLabelTop.Height := Width - Front.Width;
-  ZLabelTop.Position.Point := TPoint3D.Create(Width/2 - ZLabelTop.Height/2, -ZLabelTop.Width/2, -Depth/2 - 0.001);
+  ZLabelTop.Position.Point := Front.Position.Point +
+
+  TPoint3D.Create(Front.Width/2 + ZLabelTop.Height/2, -RefPlane.Height/2 + ZLabelTop.Width/2, 0);
+  //ZLabelTop.OnPaint := TempPaint;
 
   ZLabelBottom.Text := Stg.FZLabel;
-  ZLabelBottom.Width := Height/2;
+  ZLabelBottom.Width := Stg.XZPlane.Height - ZLabelTop.Width;
+  ZLabelBottom.Visible := ZLabelBottom.Width > 0;
+
   ZLabelBottom.Height := Width - Front.Width;
-  ZLabelBottom.Position.Point := TPoint3D.Create(Width/2 - ZLabelBottom.Height/2, ZLabelBottom.Width/2, -Depth/2 - 0.001);
+  ZLabelBottom.Position.Point := ZLabelTop.Position.Point + TPoint3D.Create(0, ZLabelTop.Width/2 + ZLabelBottom.Width/2, 0);
 
   tag := 1;
   ShowPositiveSpace;
@@ -360,6 +577,7 @@ procedure TPanelTicks.SetPositionLeft(RefPlane: TRectangle3D);
 begin
   Width := RefPlane.Width;
   Height := RefPlane.Height + 2*PANEL_PAD;
+
   Depth := SIZE_PANEL_TICKS;
   Position.Point := RefPlane.Position.Point + TPoint3D.Create(0, 0, -RefPlane.depth/2 - depth/2);
 
@@ -369,20 +587,28 @@ begin
   Front.Position.Point := TPoint3D.Create(Width/2 + 0.001, 0, Depth/2 - Front.Width/2);
 
   ZLabelTop.Text := Stg.FZLabel;
-  ZLabelTop.Width := Height/2;
+  ZLabelTop.Width := Stg.XZPlane.Height/2 + Stg.XYPlane.Position.Y;
+  ZLabelTop.Visible := ZLabelTop.Width > 0;
+
   ZLabelTop.Height := Depth - Front.Width;
   ZLabelTop.RotationAngle.Z := 90;
   ZLabelTop.RotationAngle.X := -90;
-  ZLabelTop.Position.Point := Front.Position.Point + TPoint3D.Create(0, -ZLabelTop.Width/2, -Front.Width/2 - ZLabelTop.height/2);
+  ZLabelTop.Position.Point := Front.Position.Point +
+
+  TPoint3D.Create(0, -RefPlane.Height/2 + ZLabelTop.Width/2, -Front.Width/2 - ZLabelTop.Height/2);
 
   //ZLabelBottom.OnPaint := TempPaint;
 
   ZLabelBottom.Text := Stg.FZLabel;
-  ZLabelBottom.Width := Height/2;
+  ZLabelBottom.Width := Stg.XZPlane.Height - ZLabelTop.Width;
+  ZLabelBottom.Visible := ZLabelBottom.Width > 0;
+
   ZLabelBottom.Height := Depth - Front.Width;
   ZLabelBottom.RotationAngle.Z := 90;
   ZLabelBottom.RotationAngle.X := -90;
-  ZLabelBottom.Position.Point := ZLabelTop.Position.Point + TPoint3D.Create(0, ZLabelTop.Width, 0);
+  ZLabelBottom.Position.Point := ZLabelTop.Position.Point +
+
+  TPoint3D.Create(0, ZLabelTop.Width/2 + ZLabelBottom.Width/2, 0);
 
   tag := -1;
   ShowPositiveSpace;
@@ -392,6 +618,9 @@ end;
 constructor TMainContainer.Create(AOwner: TComponent);
 begin
   inherited;
+  DataYAxis := TInfoAxis.Create;
+
+
   HitTest := false;
 
   NumTicks := DEFAULT_NUMTICKS;
@@ -405,6 +634,7 @@ begin
   BarContainer := TBarContainer.Create(Self);
   BarContainer.Parent := Self;
   BarContainer.FOnUpdate := ResizePlanes;
+
 
   origin := TSphere.Create(Self);
   origin.Parent := self;
@@ -426,6 +656,13 @@ begin
 
   PanelLeftTicks := TPanelTicks.Create(Self);
   PanelLeftTicks.HitTest := false;
+
+
+  AxisYPanel := TAxisYPanel.Create(Self);
+  AxisYPanel.info := DataYAxis;
+  AxisYPanel.Parent := Self;
+
+
 
   ResizePlanes;
 
@@ -451,7 +688,7 @@ begin
   XZPlane.Position.Z := Depth/2 + XZPlane.Depth/2;
 
   ResizeBordersR(XZPlane);
-  PanelRightTicks.SetPosition(XZPlane);
+
 
   YZPlane.Width := PLANE_DEPTH;
   YZPlane.Depth := Depth;
@@ -461,8 +698,6 @@ begin
   YZPlane.Position.Z := 0;
   ResizeBordersL(YZPlane);
 
-  PanelLeftTicks.SetPositionLeft(YZPlane);
-
 
   XYPlane.Width := Width;
   XYPlane.Depth := Depth;
@@ -471,8 +706,21 @@ begin
   XYPlane.Position.Y := Height/2 + DEFAULT_ZMIN/BarContainer.Scale;
   XYPlane.Position.Z := 0;
 
+
+  PanelRightTicks.SetPosition(XZPlane);
+  PanelLeftTicks.SetPositionLeft(YZPlane);
+
   BarContainer.Position.Y := XYPlane.Position.Y;
+
+  AxisYPanel.Position.Y := XYPlane.Position.Y;
+  AxisYPanel.Resize;
 end;
+
+procedure TMainContainer.AddYLabel(row: Integer);
+begin
+  DataYAxis.Add(row, '');
+end;
+
 
 procedure TMainContainer.ResizeBordersR(Q: TRectangle3D);
 var
@@ -644,7 +892,6 @@ end;
 
 procedure TMainContainer.CreateXYPlane;
 begin
-
   XYPlane := TRectangle3D.Create(Self);
   XYPlane.MaterialBackSource := ColorPlaneXY;
   XYPlane.MaterialShaftSource := ColorPlaneXY;
@@ -700,12 +947,17 @@ begin
 end;
 
 constructor TBarContainer.Create(AOwner: TComponent);
+var
+  Stg: TMainContainer;
 begin
   inherited;
+  Stg := AOwner as TMainContainer;
   FRowCount := DEFAULT_ROWCOUNT;
   FColCount := DEFAULT_COLCOUNT;
   DataMin := MaxSingle;
   DataMax := MinSingle;
+
+  Stg.DataYAxis.CreateDefaultBlocks(FRowCount);
 end;
 
 constructor TBar.Create(AOwner: TComponent);
@@ -986,6 +1238,7 @@ end;
 procedure T3DBarGraph.Add(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
 begin
   Stage.BarContainer.Add(row, col, Value, cl);
+  Stage.AddYLabel(row);
 end;
 
 destructor T3DBarGraph.Destroy;
