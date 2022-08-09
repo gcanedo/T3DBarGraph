@@ -101,10 +101,19 @@ object MainForm: TMainForm
       Depth = 0.100000001490116100
     end
     object TextLayer3D2: TTextLayer3D
-      Color = claBlack
-      Height = 4.000000000000000000
+      Color = claWhite
+      Height = 6.940093994140625000
+      HitTest = False
       Resolution = 50
-      Width = 8.000000000000000000
+      Text = 'eesesesese fsfsf sf sf s f'
+      TwoSide = False
+      Width = 11.112964630126950000
+    end
+    object StrokeCube1: TStrokeCube
+      Color = claPurple
+      Width = 2.000000000000000000
+      Height = 1.000000000000000000
+      Depth = 1.000000000000000000
     end
   end
   object Button1: TButton

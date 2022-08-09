@@ -116,6 +116,15 @@ interface
         procedure Resize;
     end;
 
+    TAxisXPanel = class(TDummy)
+      public
+        TopSticker, BottomSticker: TGroupSticker;
+        Base: TRectangle3D;
+        constructor Create(AOwner: TComponent); override;
+        procedure Resize;
+    end;
+
+
     TPanelTicks = class(TRectangle3D)
       public
         Front, ZLabelTop, ZLabelBottom: TTextLayer3D;
@@ -163,6 +172,10 @@ interface
         DataXAxis: TInfoAxis;
 
         AxisYPanel: TAxisYPanel;
+        AxisXPanel: TAxisXPanel;
+
+        Corner : TRectangle3D;
+
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
         procedure ResizePlanes;
@@ -184,6 +197,9 @@ interface
         procedure SetYLabel(val: String);
         function GetYLabel: String;
 
+        procedure SetXLabel(val: String);
+        function GetXLabel: String;
+
       protected
       public
         Stage: TMainContainer;
@@ -202,9 +218,12 @@ interface
         procedure SetStateRotationAngle(ang: TPoint3D);
 
         procedure AddYLabel(row: Integer; val: String);
+        procedure AddXLabel(col: Integer; val: String);
 
         property ZLabel: String read GetZLabel write SetZLabel;
         property YLabel: String read GetYLabel write SetYLabel;
+        property XLabel: String read GetXLabel write SetXLabel;
+
       published
     end;
 
@@ -248,6 +267,54 @@ begin
   for I := 0 to length(blocks) - 1 do
     if blocks[I].pos = pos then Exit(I);
   Result := -1;
+end;
+
+
+constructor TAxisXPanel.Create(AOwner: TComponent);
+var
+  ColorPlane: TColorMaterialSource;
+begin
+  inherited;
+  tag := -1;
+  TopSticker := TGroupSticker.Create(Self);
+  TopSticker.RotationAngle.X := 90;
+  TopSticker.RotationAngle.Z := -90;
+  TopSticker.Sticker.RotationAngle.Y := 180;
+  TopSticker.Lb.RotationAngle.Y := 180;
+
+  TopSticker.Parent := Self;
+  Width := TopSticker.Width;
+
+  Base := TRectangle3D.Create(Self);
+  Base.Width := TopSticker.Width;
+  Base.Parent := Self;
+  ColorPlane := TColorMaterialSource.Create(Self);
+  ColorPlane.Color := DEFAULT_XYPLANE_COLOR;
+  Base.MaterialBackSource := ColorPlane;
+  Base.MaterialShaftSource := ColorPlane;
+  Base.MaterialSource := ColorPlane;
+  Base.HitTest := false;
+  Base.Opacity := PLANE_OPACITY;
+  tag := 1;
+  BottomSticker := TGroupSticker.Create(Self);
+  BottomSticker.RotationAngle.X := 90;
+  BottomSticker.RotationAngle.Z := -90;
+  BottomSticker.Sticker.RotationAngle.Y := 0;
+  BottomSticker.Lb.RotationAngle.Y := 0;
+  BottomSticker.Parent := Self;
+end;
+
+procedure TAxisXPanel.Resize;
+begin
+  Base.Height := Height;
+  Base.Depth := Depth;
+  Base.Width := Width;
+  TopSticker.Height := Width;
+  TopSticker.Position.Y := -Height/2 - 0.001;
+  TopSticker.Resize;
+  BottomSticker.Height := Width;
+  BottomSticker.Position.Y := Height/2 + 0.001;
+  BottomSticker.Resize;
 end;
 
 constructor TAxisYPanel.Create(AOwner: TComponent);
@@ -321,6 +388,7 @@ begin
   Sticker.HitTest := false;
 
   HitTest := false;
+
 end;
 
 procedure TGroupSticker.Resize;
@@ -349,7 +417,6 @@ var
   b: TInfoCell;
   Flags: TFillTextFlags;
 begin
-
   Canvas.Clear(DEFAULT_XYPLANE_COLOR);
   Canvas.Font.Size := (0.1*Resolution);
 
@@ -686,20 +753,18 @@ begin
   ShowPositiveSpace;
 end;
 
-
 destructor TMainContainer.Destroy;
 begin
   DataYAxis.Free;
+  DataXAxis.Free;
   Inherited;
 end;
-
 
 constructor TMainContainer.Create(AOwner: TComponent);
 begin
   inherited;
   DataYAxis := TInfoAxis.Create;
-
-
+  DataXAxis := TInfoAxis.Create;
   HitTest := false;
 
   NumTicks := DEFAULT_NUMTICKS;
@@ -742,6 +807,28 @@ begin
   AxisYPanel.BottomSticker.Sticker.Data := DataYAxis;
 
 
+  AxisXPanel := TAxisXPanel.Create(Self);
+  AxisXPanel.Parent := Self;
+  AxisXPanel.TopSticker.Sticker.Data := DataXAxis;
+  AxisXPanel.BottomSticker.Sticker.Data := DataXAxis;
+
+
+  Corner := TRectangle3D.Create(Self);
+  Corner.Parent := Self;
+  Corner.Width := SIZE_PANEL_TICKS;
+  Corner.Depth := Corner.Width;
+
+  var CP: TColorMaterialSource;
+  CP := TColorMaterialSource.Create(Self);
+  CP.Color := DEFAULT_XYPLANE_COLOR;
+
+  Corner.MaterialBackSource := CP;
+  Corner.MaterialShaftSource := CP;
+  Corner.MaterialSource := CP;
+  Corner.HitTest := false;
+  Corner.Opacity := PLANE_OPACITY;
+
+
   ResizePlanes;
 
   XZPlane.OnRender := XZPlaneRender;
@@ -766,7 +853,6 @@ begin
   XZPlane.Position.Z := Depth/2 + XZPlane.Depth/2;
 
   ResizeBordersR(XZPlane);
-
 
   YZPlane.Width := PLANE_DEPTH;
   YZPlane.Depth := Depth;
@@ -796,6 +882,19 @@ begin
   AxisYPanel.Depth := XYPlane.Depth;
   AxisYPanel.Position.Point := XYPlane.Position.Point + TPoint3D.Create(XYPlane.Width/2 + AxisYPanel.Width/2, 0, 0);
   AxisYPanel.Resize;
+
+  AxisXPanel.Height := XYPlane.Height;
+  AxisXPanel.Width := XYPlane.Width;
+  AxisXPanel.Depth := SIZE_PANEL_TICKS;
+
+
+  AxisXPanel.Position.Point := XYPlane.Position.Point - TPoint3D.Create(0, 0, XYPlane.Depth/2 + AxisXPanel.Depth/2);
+  AxisXPanel.Resize;
+
+  Corner.Height := XYPlane.Height;
+  Corner.Position.Point := XYPlane.Position.Point +
+  TPoint3D.Create(XYPlane.Width/2 + Corner.Width/2, 0, -XYPlane.Depth/2 - Corner.Depth/2);
+
 end;
 
 procedure TMainContainer.ResizeBordersR(Q: TRectangle3D);
@@ -1033,6 +1132,7 @@ begin
   DataMin := MaxSingle;
   DataMax := MinSingle;
   Stg.DataYAxis.Count := FRowCount;
+  Stg.DataXAxis.Count := FColCount;
 end;
 
 constructor TBar.Create(AOwner: TComponent);
@@ -1205,6 +1305,22 @@ begin
 end;
 
 
+procedure T3DBarGraph.SetXLabel(val: String);
+begin
+  if val <> Stage.AxisXPanel.TopSticker.Lb.Text then
+    begin
+      Stage.AxisXPanel.TopSticker.Lb.Text := val;
+      Stage.AxisXPanel.TopSticker.Lb.Invalidate;
+      Stage.AxisXPanel.BottomSticker.Lb.Text := val;
+      Stage.AxisXPanel.BottomSticker.Lb.Invalidate;
+    end;
+end;
+
+function T3DBarGraph.GetXLabel: String;
+begin
+  Result := Stage.AxisXPanel.TopSticker.Lb.Text;
+end;
+
 procedure T3DBarGraph.SetYLabel(val: String);
 begin
   if val <> Stage.AxisYPanel.TopSticker.Lb.Text then
@@ -1333,12 +1449,19 @@ procedure T3DBarGraph.Add(row, col: Integer; Value: Single; cl: TAlphaColor = cl
 begin
   Stage.BarContainer.Add(row, col, Value, cl);
   Stage.DataYAxis.Count := row + 1;
+  Stage.DataXAxis.Count := col + 1;
 end;
 
 procedure T3DBarGraph.AddYLabel(row: Integer; val: String);
 begin
   Stage.DataYAxis.Add(row, val);
 end;
+
+procedure T3DBarGraph.AddXLabel(col: Integer; val: String);
+begin
+  Stage.DataXAxis.Add(col, val);
+end;
+
 
 destructor T3DBarGraph.Destroy;
 begin

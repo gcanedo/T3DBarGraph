@@ -59,6 +59,7 @@ type
     Button2: TButton;
     TextLayer3D1: TTextLayer3D;
     TextLayer3D2: TTextLayer3D;
+    StrokeCube1: TStrokeCube;
     procedure FormCreate(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
@@ -190,12 +191,20 @@ end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
+
+  TextLayer3D2.Transparency := true;
+  TextLayer3D2.Fill := TBrush.Create(TBrushKind.Solid, MakeColor(clared, 0.5));
+
+
+
   BarGraph := T3DBarGraph.Create(Self);
   BarGraph.Parent := Self;
   BarGraph.Width := 640;
   BarGraph.Height := 480;
-  BarGraph.ZLabel := 'MEAN TEMPERATURE';
+
+  BarGraph.XLabel := 'SEASON';
   BarGraph.YLabel := 'TIME PERIOD';
+  BarGraph.ZLabel := 'MEAN TEMPERATURE';
 
 
   BarGraph.Position.X := 568;
@@ -220,6 +229,11 @@ begin
   BarGraph.AddYLabel(0, '1987-1996');
   BarGraph.AddYLabel(1, '1937-1946');
   BarGraph.AddYLabel(2, '1887-1896');
+
+  BarGraph.AddXLabel(0, 'SPRING');
+  BarGraph.AddXLabel(1, 'SUMMER');
+  BarGraph.AddXLabel(2, 'AUTUMN');
+  BarGraph.AddXLabel(3, 'WINTER');
 end;
 
 
