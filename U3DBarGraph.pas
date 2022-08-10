@@ -8,6 +8,18 @@ interface
     FMX.Graphics, FMX.Types;
 
   const
+
+    //Sticker Legend Box
+    LEGEND_BOX_PAD = 0.05;
+    LEGEND_BOX_GAP = 0.02;
+    LEGEND_BOX_FONT_SIZE = 0.09;
+    LEGEND_BOX_FONT_COLOR = claBlack;
+    LEGEND_BOX_BACKGROUND_COLOR = claWhite;
+    LEGEND_BOX_BACKGROUND_COLOR_STICKER = claYellow;
+    LEGEND_BOX_DEPTH = 0.05;
+    LEGEND_BOX_HEIGHT_POLE = 0.50;
+    LEGEND_BOX_COLOR_POLE = claBlack;
+
     PANEL_PAD = 0.125;
     WIDTH_LINE_TICK = 0.100;
     HEIGHT_LINE_TICK = 0.040;
@@ -37,7 +49,10 @@ interface
     SIZE_PANEL_TICKS = 1;
     SIZE_LABEL = 0.3;
 
+    BAR_SELECTED_DEFAULT_COLOR = claBlue;
+
   type
+    TInfoStr = Array of String;
     TMainContainer = class;
     TOnUpdateEvent = procedure of object;
 
@@ -57,8 +72,34 @@ interface
         procedure Add(pos: Integer; value: String);
         function IndexOf(pos: Integer): Integer;
         property Count: Integer read blockCount write SetCount;
+        function Data(pos: Integer): String;
     end;
 
+    TStickerInfo = class(TTextLayer3D)
+      public
+        info: TInfoStr;
+        Dims: TSizeF;
+        procedure Paint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
+        constructor Create(AOwner: TComponent); override;
+        procedure SetInfo(Val: TInfoStr);
+        property Data: TInfoStr read info write SetInfo;
+        function getDims(Canvas: TCanvas): TSizeF;
+        procedure Close;
+    end;
+
+    TSign = class(TDummy)
+      StickerA, StickerB: TStickerInfo;
+      Wood: TRectangle3D;
+      constructor Create(AOwner: TComponent); override;
+    end;
+
+    TLegend3D = class(TDummy)
+      Sign: TSign;
+      Pole: TCylinder;
+      procedure SetData(val: TInfoStr);
+      constructor Create(AOwner: TComponent); override;
+      property Data: TInfoStr write SetData;
+    end;
 
     TBar = class(TCube)
       private
@@ -67,8 +108,15 @@ interface
       public
         row, col: Integer;
         val: Single;
-        color: TAlphaColor;
+        fcolor: TAlphaColor;
+        FIsSelected: Boolean;
         constructor Create(AOwner: TComponent); override;
+        destructor Destroy; override;
+        procedure SetIsSelected(val: Boolean);
+        function GetIsSelected: Boolean;
+        procedure SetColor(val: TAlphaColor);
+        property color: TAlphaColor write SetColor;
+        property isSelected: Boolean read GetIsSelected write SetIsSelected;
     end;
 
     TBarContainer = class(TDummy)
@@ -80,6 +128,10 @@ interface
         FRowCount, FColCount: Integer;
         DataMin, DataMax: Single;
         Scale: Single;
+        Legend: TLegend3D;
+        Stg: TMainContainer;
+        procedure UnSelected(ExceptBar: TBar = Nil);
+        procedure BarClick(Sender: TObject);
         constructor Create(AOwner: TComponent); override;
         procedure Add(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
         procedure CreateBar(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
@@ -175,11 +227,13 @@ interface
         AxisXPanel: TAxisXPanel;
 
         Corner : TRectangle3D;
+        Boss: TObject;
 
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
         procedure ResizePlanes;
         procedure PanelPaint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
+        function RequestData(b: Tbar): TInfoStr;
 
     end;
 
@@ -189,6 +243,7 @@ interface
         procedure MouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
         procedure MouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
         procedure MouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+        procedure ViewportClick(Sender: TObject);
         procedure InitMouseEvents;
 
         procedure SetZLabel(val: String);
@@ -229,6 +284,114 @@ interface
 
 implementation
 
+constructor TLegend3D.Create(AOwner: TComponent);
+var
+  clMat: TColorMaterialSource;
+begin
+  inherited;
+  Sign := TSign.Create(Self);
+  Sign.Parent := Self;
+  Pole := TCylinder.Create(Self);
+  Pole.Parent := Self;
+  Pole.Height := LEGEND_BOX_HEIGHT_POLE;
+  Pole.Width := LEGEND_BOX_DEPTH;
+  Pole.Depth := LEGEND_BOX_DEPTH;
+  clMat := TColorMaterialSource.Create(Self);
+  clMat.Color := LEGEND_BOX_COLOR_POLE;
+  Pole.MaterialSource := clMat;
+  Pole.HitTest := false;
+  Pole.Position.Y := -Pole.Height/2;
+end;
+
+procedure TLegend3D.SetData(val: TInfoStr);
+begin
+  Sign.StickerA.Data := val;
+  Sign.StickerB.Data := val;
+  Sign.Wood.Width := Sign.StickerA.Width;
+  Sign.Wood.Height := Sign.StickerA.Height;
+  Sign.Position.Point := Pole.Position.Point + TPoint3D.Create(0, -Pole.Height/2 - Sign.Wood.Height/2, 0);
+end;
+
+constructor TSign.Create(AOwner: TComponent);
+var
+  colorMat: TColorMaterialSource;
+begin
+  inherited;
+  Wood := TRectangle3D.Create(Self);
+  Wood.Parent := Self;
+  Wood.HitTest := False;
+  colorMat := TColorMaterialSource.Create(self);
+  colorMat.Color := LEGEND_BOX_BACKGROUND_COLOR;
+  Wood.MaterialBackSource := colorMat;
+  Wood.MaterialShaftSource := colorMat;
+  Wood.MaterialSource := colorMat;
+  Wood.Depth := LEGEND_BOX_DEPTH;
+
+  StickerA := TStickerInfo.Create(Self);
+  StickerA.Parent := Self;
+  StickerA.Position.Z := Wood.Depth/2 + 0.001;
+
+  StickerB := TStickerInfo.Create(Self);
+  StickerB.Parent := Self;
+  StickerB.Position.Z := -StickerA.Position.Z
+end;
+
+procedure TStickerInfo.SetInfo(Val: TInfoStr);
+begin
+  info := Val;
+  Dims := getDims(Canvas);
+  Width := 2*LEGEND_BOX_PAD + Dims.Width/Resolution;
+  Height := 2*LEGEND_BOX_PAD + Dims.Height/Resolution + LEGEND_BOX_GAP*(length(info) - 1);
+  OnPaint := Paint;
+end;
+
+procedure TStickerInfo.Close;
+begin
+  Width := 0;
+  Height := 0;
+  OnPaint := Nil;
+end;
+
+procedure TStickerInfo.Paint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
+var
+  I: Integer;
+  TopLeft: TPointF;
+  R: TRectF;
+  Flags: TFillTextFlags;
+  H: Single;
+begin
+  Canvas.Clear(LEGEND_BOX_BACKGROUND_COLOR_STICKER);
+  Canvas.Font.Size := LEGEND_BOX_FONT_SIZE*Resolution;
+  TopLeft := TPointF.Create(LEGEND_BOX_PAD, LEGEND_BOX_PAD)*Resolution;
+  for I := 0 to length(info) - 1 do
+    begin
+      H := Canvas.TextHeight(info[I]);
+      R := TRectF.Create(TopLeft, Dims.Width, H);
+      Canvas.Fill.Color := LEGEND_BOX_FONT_COLOR;
+      Canvas.FillText(R, info[I], false, 1, Flags, TTextAlign.Leading, TTextAlign.Center);
+      TopLeft := TopLeft + TPointF.Create(0, H + LEGEND_BOX_GAP*Resolution);
+    end;
+end;
+
+constructor TStickerInfo.Create(AOwner: TComponent);
+begin
+  inherited;
+  HitTest := false;
+  Resolution := 100;
+end;
+
+function TStickerInfo.getDims(Canvas: TCanvas): TSizeF;
+var
+  I: Integer;
+begin
+  Result := TSizeF.Create(0, 0);
+  Canvas.Font.Size := LEGEND_BOX_FONT_SIZE*Resolution;
+  for I := 0 to length(info) - 1 do
+    begin
+      Result.Width := Max(Result.Width, Canvas.TextWidth(info[I]));
+      Result.Height := Result.Height + Canvas.TextHeight(info[I]);
+    end;
+end;
 
 constructor TInfoAxis.Create;
 begin
@@ -269,6 +432,16 @@ begin
   Result := -1;
 end;
 
+function TInfoAxis.Data(pos: Integer): String;
+var
+  k: Integer;
+begin
+  k := IndexOf(pos);
+  if k <> -1 then
+    Result := blocks[k].Text
+  else
+    Result := '';
+end;
 
 constructor TAxisXPanel.Create(AOwner: TComponent);
 var
@@ -760,9 +933,23 @@ begin
   Inherited;
 end;
 
+function TMainContainer.RequestData(b: Tbar): TInfoStr;
+var
+  gb: T3DBarGraph;
+begin
+  gb := Boss as T3DBarGraph;
+  Result := [
+    Format('%s: %.2f', [gb.ZLabel, b.val]),
+    Format('%s: %s', [gb.XLabel, DataXAxis.Data(b.col)]),
+    Format('%s: %s', [gb.YLabel, DataYAxis.Data(b.row)])
+  ];
+end;
+
 constructor TMainContainer.Create(AOwner: TComponent);
 begin
   inherited;
+  Boss := AOwner;
+
   DataYAxis := TInfoAxis.Create;
   DataXAxis := TInfoAxis.Create;
   HitTest := false;
@@ -1121,9 +1308,62 @@ begin
   //Context.DrawCube(TPoint3D.Zero, TPoint3D.Create(Width, Height, Depth), 1, DEFAULT_GRID_COLOR);
 end;
 
-constructor TBarContainer.Create(AOwner: TComponent);
+procedure TBarContainer.UnSelected(ExceptBar: TBar = Nil);
 var
-  Stg: TMainContainer;
+  I: Integer;
+  b: TBar;
+begin
+  Legend.Visible := false;
+  for I := 0 to ChildrenCount - 1 do
+    if Children[I] is TBar then
+      begin
+        b := Children[I] as TBar;
+        if (b <> ExceptBar) and (b.isSelected) then b.isSelected := false;
+      end;
+end;
+
+procedure TBarContainer.BarClick(Sender: TObject);
+var
+  bar: TBar;
+  gb: T3DBarGraph;
+begin
+  if Sender is TBar then
+    begin
+      bar := Sender as TBar;
+      UnSelected(bar);
+      bar.isSelected := not bar.isSelected;
+      if bar.isSelected then
+        begin
+          Legend.Data := Stg.RequestData(bar);
+          Legend.Parent := self;
+          Legend.RotationAngle.y := 135;
+          Legend.Visible := true;
+          Legend.Sign.StickerA.Invalidate;
+          Legend.Sign.StickerB.Invalidate;
+
+          //gb := Stg.Boss as T3DBarGraph;
+
+          if bar.val >= 0 then
+            begin
+              Legend.Position.Point := bar.Position.Point + TPoint3D.Create(0, -bar.Height/2, 0);
+              Legend.RotationAngle.X := 0;
+              Legend.Sign.StickerA.RotationAngle.Y := 180;
+            end
+          else
+            begin
+              Legend.Position.Point := bar.Position.Point + TPoint3D.Create(0, bar.Height/2, 0);
+              Legend.RotationAngle.X := 180;
+              Legend.Sign.StickerA.RotationAngle.Y := 180;
+            end;
+
+          //gb.FrontCamera.Target := Legend;
+
+        end;
+    end;
+end;
+
+constructor TBarContainer.Create(AOwner: TComponent);
+
 begin
   inherited;
   Stg := AOwner as TMainContainer;
@@ -1133,12 +1373,49 @@ begin
   DataMax := MinSingle;
   Stg.DataYAxis.Count := FRowCount;
   Stg.DataXAxis.Count := FColCount;
+
+  Legend := TLegend3D.Create(self);
 end;
 
 constructor TBar.Create(AOwner: TComponent);
 begin
   inherited;
+  FIsSelected := false;
+end;
 
+procedure TBar.SetColor(val: TAlphaColor);
+var
+  mat: TLightMaterialSource;
+begin
+  mat := TLightMaterialSource.Create(self);
+  mat.Shininess := 10;
+  mat.Ambient := val;
+  mat.Emissive := val;
+  mat.Specular := val;
+  MaterialSource := mat;
+end;
+
+procedure TBar.SetIsSelected(val: Boolean);
+begin
+  if val <> FIsSelected then
+    begin
+      FIsSelected := val;
+      if FIsSelected then
+        color := BAR_SELECTED_DEFAULT_COLOR
+      else
+        color := fcolor;
+      repaint;
+    end;
+end;
+
+function TBar.GetIsSelected: Boolean;
+begin
+  Result := FIsSelected;
+end;
+
+destructor TBar.Destroy;
+begin
+  inherited;
 end;
 
 procedure TBar.MainRender(Sender: TObject; Context: TContext3D);
@@ -1189,7 +1466,6 @@ end;
 procedure TBarContainer.CreateBar(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
 var
   bar: TBar;
-  mat:  TLightMaterialSource;
 begin
   bar := TBar.Create(self);
   bar.Name := Format('Bar_%d_%d', [row, col]);
@@ -1197,7 +1473,7 @@ begin
   bar.Parent := Self;
   bar.row := row;
   bar.col := col;
-  bar.color := cl;
+  bar.fcolor := cl;
   bar.val := value;
   bar.Opacity := 1.0;
 
@@ -1205,15 +1481,9 @@ begin
   bar.Depth := BAR_DEPTH;
   bar.Height := Abs(Value/Scale);
   bar.SetPosition(RowCount, ColCount);
-
-  mat := TLightMaterialSource.Create(self);
-  mat.Shininess := 10;
-  mat.Ambient := cl;
-  mat.Emissive := cl;
-  mat.Specular := cl;
-
-  bar.MaterialSource := mat;
-  bar.HitTest := false;
+  bar.color := cl;
+  //bar.HitTest := false;
+  bar.OnClick := BarClick;
   bar.EndUpdate;
   bar.Repaint;
 end;
@@ -1413,11 +1683,17 @@ begin
   OnMouseDown := MouseDown;
   OnMouseMove := MouseMove;
   OnMouseUp := MouseUp;
+  OnClick := ViewportClick;
 end;
 
 procedure T3DBarGraph.MouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean);
 begin
   FrontCamera.Position.Z := FrontCamera.Position.Z + 0.01*WheelDelta;
+end;
+
+procedure T3DBarGraph.ViewportClick(Sender: TObject);
+begin
+  if Tag <> 1 then Stage.BarContainer.UnSelected;
 end;
 
 procedure T3DBarGraph.MouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
@@ -1427,6 +1703,7 @@ begin
       PosMouse := TPointF.Create(X, Y);
       Pos3D := Stage.RotationAngle.Point;
       status := 'MouseMove';
+      Tag := 0;
     end;
 end;
 
@@ -1437,12 +1714,16 @@ begin
       Stage.RotationAngle.X := Pos3D.X + (Y - PosMouse.Y)*0.4;
       Stage.RotationAngle.Y := Pos3D.Y + (PosMouse.X - X)*0.4;
       Stage.RotationAngle.Z := Pos3D.Z - 0.4*((PosMouse.X-X)-(Y-PosMouse.Y));
+      Tag := 1;
     end;
 end;
 
 procedure T3DBarGraph.MouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
 begin
-  if(Status = 'MouseMove') then Status := 'static';
+  if(Status = 'MouseMove') then
+    begin
+       Status := 'static';
+    end;
 end;
 
 procedure T3DBarGraph.Add(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);

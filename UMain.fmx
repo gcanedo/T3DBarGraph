@@ -13,10 +13,10 @@ object MainForm: TMainForm
   object Viewport3D1: TViewport3D
     Camera = Camera1
     Color = claBlack
-    Position.X = 8.000000000000000000
-    Position.Y = 16.000000000000000000
-    Size.Width = 545.000000000000000000
-    Size.Height = 425.000000000000000000
+    Position.X = 976.000000000000000000
+    Position.Y = 336.000000000000000000
+    Size.Width = 121.000000000000000000
+    Size.Height = 241.000000000000000000
     Size.PlatformDefault = False
     UsingDesignCamera = False
     OnMouseDown = Viewport3D1MouseDown
@@ -102,12 +102,13 @@ object MainForm: TMainForm
     end
     object TextLayer3D2: TTextLayer3D
       Color = claWhite
-      Height = 6.940093994140625000
+      Height = 6.305505752563477000
       HitTest = False
+      Opacity = 0.500000000000000000
       Resolution = 50
       Text = 'eesesesese fsfsf sf sf s f'
       TwoSide = False
-      Width = 11.112964630126950000
+      Width = 10.242713928222660000
     end
     object StrokeCube1: TStrokeCube
       Color = claPurple
@@ -129,12 +130,12 @@ object MainForm: TMainForm
     Emissive = claNull
     Specular = claAntiquewhite
     Shininess = 30
-    Left = 320
-    Top = 552
+    Left = 928
+    Top = 616
   end
   object Button2: TButton
-    Position.X = 656.000000000000000000
-    Position.Y = 528.000000000000000000
+    Position.X = 968.000000000000000000
+    Position.Y = 104.000000000000000000
     Size.Width = 144.000000000000000000
     Size.Height = 22.000000000000000000
     Size.PlatformDefault = False
@@ -144,7 +145,7 @@ object MainForm: TMainForm
   end
   object ColorMaterialSource1: TColorMaterialSource
     Color = claSkyblue
-    Left = 128
-    Top = 544
+    Left = 736
+    Top = 608
   end
 end

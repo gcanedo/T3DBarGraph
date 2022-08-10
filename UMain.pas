@@ -191,24 +191,15 @@ end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
-
-  TextLayer3D2.Transparency := true;
-  TextLayer3D2.Fill := TBrush.Create(TBrushKind.Solid, MakeColor(clared, 0.5));
-
-
-
   BarGraph := T3DBarGraph.Create(Self);
   BarGraph.Parent := Self;
-  BarGraph.Width := 640;
-  BarGraph.Height := 480;
-
+  BarGraph.Width := 1024;
+  BarGraph.Height := 768;
   BarGraph.XLabel := 'SEASON';
   BarGraph.YLabel := 'TIME PERIOD';
   BarGraph.ZLabel := 'MEAN TEMPERATURE';
-
-
-  BarGraph.Position.X := 568;
-  BarGraph.Position.Y := 16;
+  BarGraph.Position.X := 0;
+  BarGraph.Position.Y := 0;
 
   BarGraph.Add(0, 0, -14, claGreen);
   BarGraph.Add(1, 0, 14, claPurple);
