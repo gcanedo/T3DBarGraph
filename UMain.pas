@@ -8,7 +8,7 @@ uses
   System.Math.Vectors, FMX.Controls3D, FMX.Objects3D, FMX.Types3D,
   FMX.MaterialSources, Math, FMX.Memo.Types, FMX.Controls.Presentation,
   FMX.ScrollBox, FMX.Memo, FMX.StdCtrls, System.UIConsts, U3DBarGraph,
-  FMX.Layers3D;
+  FMX.Layers3D, FMX.Objects;
 
 Type
   TInfoCell = record
@@ -74,6 +74,8 @@ type
     procedure Dummy1Render(Sender: TObject; Context: TContext3D);
     procedure Button2Click(Sender: TObject);
     procedure TextLayer3D1Paint(Sender: TObject; Canvas: TCanvas;
+      const ARect: TRectF);
+    procedure TextLayer3D2Paint(Sender: TObject; Canvas: TCanvas;
       const ARect: TRectF);
   private
     { Private declarations }
@@ -190,11 +192,32 @@ begin
 end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
+var
+  c: TComponent;
+  t: TText;
 begin
+
+  //TextLayer3D2.DeleteChildren;
+
+
+
+  tag := TextLayer3D2.ChildrenCount;
+  c := TextLayer3D2.Children[tag-1];
+  if c is TText then
+    begin
+      t := c as TText;
+      t.HitTest := false;
+
+    end;
+
+
+
+
+
   BarGraph := T3DBarGraph.Create(Self);
   BarGraph.Parent := Self;
-  BarGraph.Width := 1024;
-  BarGraph.Height := 768;
+  BarGraph.Width := 800;
+  BarGraph.Height := 600;
   BarGraph.XLabel := 'SEASON';
   BarGraph.YLabel := 'TIME PERIOD';
   BarGraph.ZLabel := 'MEAN TEMPERATURE';
@@ -278,6 +301,12 @@ begin
 
  Canvas.Fill.Color := claBlue;
  Canvas.FillText(ARect, 'ESTE ES UN TEXTO', false, 1, Flags, TTextAlign.Center, TTextAlign.Center);
+end;
+
+procedure TMainForm.TextLayer3D2Paint(Sender: TObject; Canvas: TCanvas;
+  const ARect: TRectF);
+begin
+  Canvas.Clear(claYellow);
 end;
 
 procedure TMainForm.Viewport3D1MouseDown(Sender: TObject; Button: TMouseButton;

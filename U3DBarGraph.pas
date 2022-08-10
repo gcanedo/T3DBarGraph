@@ -5,7 +5,7 @@ interface
     FMX.Viewport3D, System.Classes, FMX.Objects3D, Math, System.SysUtils,
     FMX.MaterialSources, System.UIConsts, FMX.Types3D, System.Math.Vectors,
     System.UITypes, FMX.Controls3D, System.Types, FMX.Ani, FMX.Layers3D,
-    FMX.Graphics, FMX.Types;
+    FMX.Graphics, FMX.Types, FMX.Objects;
 
   const
 
@@ -198,8 +198,6 @@ interface
     TMainContainer = class(TDummy)
       private
         ColorPlane, ColorPlaneXY: TColorMaterialSource;
-
-
       protected
         procedure MainRender(Sender: TObject; Context: TContext3D);
         procedure XYPlaneRender(Sender: TObject; Context: TContext3D);
@@ -214,7 +212,6 @@ interface
       public
         XYPlane, XZPlane, YZPlane: TRectangle3D;
         PanelRightTicks, PanelLeftTicks: TPanelTicks;
-        origin: TSphere;
         BarContainer: TBarContainer;
         HalfPlaneHeight: Single;
         NumTicks: Integer;
@@ -545,6 +542,7 @@ begin
   Lb.Height := SIZE_LABEL;
   Lb.Parent := Self;
   Lb.HitTest := false;
+  (Lb.Children[0] as TText).HitTest := false;
 
 
   Lb.Resolution := 100;
@@ -660,6 +658,7 @@ end;
 constructor TSticker.Create(AOwner: TComponent);
 begin
   inherited;
+  DeleteChildren;
   tag := AOwner.Tag;
   HitTest := false;
   Resolution := 100;
@@ -681,6 +680,7 @@ begin
   Front.Parent := Self;
   Front.Text := '';
   Front.HitTest := false;
+  Front.DeleteChildren;
   Front.Resolution := 100;
 
   ZLabelTop := TTextLayer3D.Create(Self);
@@ -689,6 +689,9 @@ begin
   ZLabelTop.HitTest := false;
   ZLabelTop.Resolution := 100;
   ZLabelTop.RotationAngle.Z := -90;
+  (ZLabelTop.Children[0] as TText).HitTest := false;
+
+
   ZlabelTop.Color := FONT_COLOR_AXIS;
   ZlabelTop.Font.Size := ZLabelTop.Resolution*PANEL_PAD;
 
@@ -697,6 +700,8 @@ begin
   ZLabelBottom.Parent := Self;
   ZLabelBottom.Text := Stg.FZLabel;
   ZLabelBottom.HitTest := false;
+  (ZLabelBottom.Children[0] as TText).HitTest := false;
+
   ZLabelBottom.Resolution := 100;
   ZLabelBottom.RotationAngle.Z := -90;
   ZlabelBottom.Color := FONT_COLOR_AXIS;
@@ -965,18 +970,6 @@ begin
   BarContainer := TBarContainer.Create(Self);
   BarContainer.Parent := Self;
   BarContainer.FOnUpdate := ResizePlanes;
-
-
-  origin := TSphere.Create(Self);
-  origin.Parent := self;
-  origin.Width := 0.1;
-  origin.Depth := origin.Width;
-  origin.Height := origin.Width;
-  origin.Opacity := 0.8;
-
-  origin.Position.X := 0;
-  origin.Position.Y := 0;
-  origin.Position.Z := 0;
 
   CreateXZPlane;
   CreateXYPlane;
@@ -1259,10 +1252,10 @@ begin
   XYPlane.MaterialShaftSource := ColorPlaneXY;
   XYPlane.MaterialSource := ColorPlaneXY;
   XYPlane.Parent := Self;
-  XYPlane.HitTest := false;
+  XYPlane.HitTest := true;
+  XYPlane.OnClick := (Boss as T3DBarGraph).ViewportClick;
   XYPlane.Opacity := PLANE_OPACITY;
 end;
-
 
 procedure TMainContainer.XYPlaneRender(Sender: TObject; Context: TContext3D);
 var
@@ -1654,11 +1647,13 @@ begin
   LeftLight.Position.Z := 0;
 
 
+
   {
   LeftLight.RotationAngle.X := 320;
   LeftLight.RotationAngle.Y := 95;
   LeftLight.RotationAngle.Z := 321;
    }
+
 
 
   RightLight := TLight.Create(self);
@@ -1667,6 +1662,7 @@ begin
   RightLight.Position.X := 8;
   RightLight.Position.Y := 0;
   RightLight.Position.Z := 8;
+
 
   {
   LeftLight.RotationAngle.X := 320;
@@ -1693,7 +1689,7 @@ end;
 
 procedure T3DBarGraph.ViewportClick(Sender: TObject);
 begin
-  if Tag <> 1 then Stage.BarContainer.UnSelected;
+  if (Tag <> 1) or (Sender is TRectangle3D) then Stage.BarContainer.UnSelected;
 end;
 
 procedure T3DBarGraph.MouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
