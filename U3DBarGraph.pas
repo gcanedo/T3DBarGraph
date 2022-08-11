@@ -51,6 +51,16 @@ interface
 
     BAR_SELECTED_DEFAULT_COLOR = claBlue;
 
+
+    //// CAMERA ////////
+    ROTATION_STEP = 0.3;
+
+    /// QUALITY //////
+    ///
+    DEFAULT_RESOLUTION = 200;
+
+
+
   type
     TInfoStr = Array of String;
     TMainContainer = class;
@@ -236,6 +246,8 @@ interface
 
     T3DBarGraph = class(TViewport3D)
       private
+        FDown: TPointF;
+
         procedure MouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean);
         procedure MouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
         procedure MouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
@@ -260,6 +272,7 @@ interface
         Pos3D: TPoint3D;
         PosMouse: TPointF;
         LeftLight, RightLight: TLight;
+        MyCamera: TDummy;
 
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
@@ -374,7 +387,7 @@ constructor TStickerInfo.Create(AOwner: TComponent);
 begin
   inherited;
   HitTest := false;
-  Resolution := 100;
+  Resolution := DEFAULT_RESOLUTION;
 end;
 
 function TStickerInfo.getDims(Canvas: TCanvas): TSizeF;
@@ -545,7 +558,7 @@ begin
   (Lb.Children[0] as TText).HitTest := false;
 
 
-  Lb.Resolution := 100;
+  Lb.Resolution := DEFAULT_RESOLUTION;
   Lb.RotationAngle.Z := -90;
   Lb.Color := FONT_COLOR_AXIS;
   Lb.Fill := TBrush.Create(TBrushKind.Solid, DEFAULT_XYPLANE_COLOR);
@@ -661,7 +674,7 @@ begin
   DeleteChildren;
   tag := AOwner.Tag;
   HitTest := false;
-  Resolution := 100;
+  Resolution := DEFAULT_RESOLUTION;
 end;
 
 constructor TPanelTicks.Create(AOwner: TComponent);
@@ -681,13 +694,13 @@ begin
   Front.Text := '';
   Front.HitTest := false;
   Front.DeleteChildren;
-  Front.Resolution := 100;
+  Front.Resolution := DEFAULT_RESOLUTION;
 
   ZLabelTop := TTextLayer3D.Create(Self);
   ZLabelTop.Parent := Self;
   ZLabelTop.Text := Stg.FZLabel;
   ZLabelTop.HitTest := false;
-  ZLabelTop.Resolution := 100;
+  ZLabelTop.Resolution := DEFAULT_RESOLUTION;
   ZLabelTop.RotationAngle.Z := -90;
   (ZLabelTop.Children[0] as TText).HitTest := false;
 
@@ -702,7 +715,7 @@ begin
   ZLabelBottom.HitTest := false;
   (ZLabelBottom.Children[0] as TText).HitTest := false;
 
-  ZLabelBottom.Resolution := 100;
+  ZLabelBottom.Resolution := DEFAULT_RESOLUTION;
   ZLabelBottom.RotationAngle.Z := -90;
   ZlabelBottom.Color := FONT_COLOR_AXIS;
   ZlabelBottom.Font.Size := ZLabelBottom.Resolution*PANEL_PAD;
@@ -1189,12 +1202,14 @@ begin
   Panel.Name := 'TopPanel';
   Panel.Parent := P;
   Panel.HitTest := false;
+  (Panel.Children[0] as TText).HitTest := false;
   Panel.OnPaint := PanelPaint;
 
   Panel := TTextLayer3D.Create(P);
   Panel.Name := 'BottomPanel';
   Panel.Parent := P;
   Panel.HitTest := false;
+  (Panel.Children[0] as TText).HitTest := false;
   Panel.OnPaint := PanelPaint;
 end;
 
@@ -1625,17 +1640,16 @@ begin
   Stage := TMainContainer.Create(Self);
   Stage.Parent := Self;
 
-  FrontCamera := TCamera.Create(self);
-  FrontCamera.Parent := Self;
-  FrontCamera.Target := Stage;
 
+  MyCamera := TDummy.Create(Self);
+  MyCamera.Parent := self;
+  FrontCamera := TCamera.Create(self);
+  FrontCamera.Target := Stage;
   FrontCamera.Position.X := 0;
   FrontCamera.Position.Z := -10;
   FrontCamera.Position.Y := -Stage.Height/2;
-
+  MyCamera.AddObject(FrontCamera);
   Stage.RotationAngle.Y := 45;
-
-
   Camera := FrontCamera;
 
 
@@ -1646,29 +1660,12 @@ begin
   LeftLight.Position.Y := 0;
   LeftLight.Position.Z := 0;
 
-
-
-  {
-  LeftLight.RotationAngle.X := 320;
-  LeftLight.RotationAngle.Y := 95;
-  LeftLight.RotationAngle.Z := 321;
-   }
-
-
-
   RightLight := TLight.Create(self);
   RightLight.LightType := TLightType.Point;
   RightLight.Parent := Self;
   RightLight.Position.X := 8;
   RightLight.Position.Y := 0;
   RightLight.Position.Z := 8;
-
-
-  {
-  LeftLight.RotationAngle.X := 320;
-  LeftLight.RotationAngle.Y := 290;
-  LeftLight.RotationAngle.Z := 321;
-  }
 
   InitMouseEvents;
 end;
@@ -1694,22 +1691,24 @@ end;
 
 procedure T3DBarGraph.MouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
 begin
-  if Status = 'static' then
+  if (Button = TMouseButton.mbLeft) and (ssLeft in Shift) and (Status = 'static') then
     begin
-      PosMouse := TPointF.Create(X, Y);
-      Pos3D := Stage.RotationAngle.Point;
-      status := 'MouseMove';
+      FDown := PointF(X, Y);
       Tag := 0;
+      Status := 'MouseMove';
     end;
 end;
 
 procedure T3DBarGraph.MouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
 begin
-  if(Status = 'MouseMove') then
+  if (ssLeft in Shift) and (Status = 'MouseMove') then
     begin
-      Stage.RotationAngle.X := Pos3D.X + (Y - PosMouse.Y)*0.4;
-      Stage.RotationAngle.Y := Pos3D.Y + (PosMouse.X - X)*0.4;
-      Stage.RotationAngle.Z := Pos3D.Z - 0.4*((PosMouse.X-X)-(Y-PosMouse.Y));
+      if abs(Y - FDown.Y) > abs(X - FDown.X) then
+          MyCamera.RotationAngle.X := MyCamera.RotationAngle.X - ((Y - FDown.Y)*ROTATION_STEP)
+      else
+          Stage.RotationAngle.Y := Stage.RotationAngle.Y - ((X - FDown.X)*ROTATION_STEP);
+
+      FDown := PointF(X, Y);
       Tag := 1;
     end;
 end;
@@ -1738,7 +1737,6 @@ procedure T3DBarGraph.AddXLabel(col: Integer; val: String);
 begin
   Stage.DataXAxis.Add(col, val);
 end;
-
 
 destructor T3DBarGraph.Destroy;
 begin

@@ -8,144 +8,15 @@ object MainForm: TMainForm
   FormFactor.Height = 480
   FormFactor.Devices = [Desktop]
   OnCreate = FormCreate
-  OnClose = FormClose
   DesignerMasterStyle = 0
-  object Viewport3D1: TViewport3D
-    Camera = Camera1
-    Color = claBlack
-    Position.X = 888.000000000000000000
-    Position.Y = 208.000000000000000000
-    Size.Width = 233.000000000000000000
-    Size.Height = 417.000000000000000000
-    Size.PlatformDefault = False
-    UsingDesignCamera = False
-    OnMouseDown = Viewport3D1MouseDown
-    OnMouseMove = Viewport3D1MouseMove
-    OnMouseUp = Viewport3D1MouseUp
-    OnMouseWheel = Viewport3D1MouseWheel
-    object Dummy1: TDummy
-      Width = 5.000000000000000000
-      Height = 5.000000000000000000
-      Depth = 5.000000000000000000
-      OnRender = Dummy1Render
-      object Rectangle3D1: TRectangle3D
-        Position.Y = 2.500000000000000000
-        RotationAngle.X = 90.000000000000000000
-        Width = 5.000000000000000000
-        Height = 5.000000000000000000
-        Depth = 0.200000002980232200
-        CornerType = Round
-        Flatness = 0.050000000745058060
-        Sides = [Front, Back, Shaft]
-        MaterialBackSource = ColorMaterialSource1
-        MaterialShaftSource = ColorMaterialSource1
-        MaterialSource = ColorMaterialSource1
-        Quanternion = '(0.70710676908493,0,0,0.70710676908493)'
-        object TextLayer3D1: TTextLayer3D
-          Color = claBrown
-          Font.Family = 'Arial'
-          Font.Size = 16.000000000000000000
-          Font.StyleExt = {00070000000000000004000000}
-          Height = 4.000000000000000000
-          HitTest = False
-          Position.Z = 0.100100003182888000
-          Resolution = 50
-          RotationAngle.X = 180.000000000000000000
-          Width = 8.000000000000000000
-          Quanternion = '(1,0,0,-4.37113882867379E-8)'
-        end
-      end
-    end
-    object Light1: TLight
-      Color = claWhite
-      LightType = Directional
-      SpotCutOff = 180.000000000000000000
-      Position.X = -7.936183929443359000
-      Position.Y = -4.914687156677246000
-      RotationAngle.X = 320.029449462890600000
-      RotationAngle.Y = 95.215042114257810000
-      RotationAngle.Z = 321.639923095703100000
-      Width = 1.000000000000000000
-      Height = 1.000000000000000000
-      Depth = 1.000000000000000000
-      Quanternion = 
-        '(-0.446613162755966,0.731246531009674,-0.00834605190902948,0.515' +
-        '503585338593)'
-    end
-    object Light2: TLight
-      Color = claWhite
-      LightType = Directional
-      SpotCutOff = 180.000000000000000000
-      Position.X = 7.718925952911377000
-      Position.Y = -4.985794067382813000
-      RotationAngle.X = 322.745330810546900000
-      RotationAngle.Y = 290.022491455078100000
-      RotationAngle.Z = 353.691406250000000000
-      Width = 1.000000000000000000
-      Height = 1.000000000000000000
-      Depth = 1.000000000000000000
-      Quanternion = 
-        '(0.291186094284058,0.528155505657196,0.225597366690636,-0.765093' +
-        '982219696)'
-    end
-    object Camera1: TCamera
-      AngleOfView = 45.000000000000000000
-      Position.Z = -20.000000000000000000
-      Width = 1.000000000000000000
-      Height = 1.000000000000000000
-      Depth = 1.000000000000000000
-    end
-    object Sphere1: TSphere
-      Width = 0.100000001490116100
-      Height = 0.100000001490116100
-      Depth = 0.100000001490116100
-    end
-    object TextLayer3D2: TTextLayer3D
-      Color = claWhite
-      Font.Size = 16.000000000000000000
-      Height = 6.305505752563477000
-      HitTest = False
-      Resolution = 50
-      Text = 'eesesesese fsfsf sf sf s f'
-      TwoSide = False
-      Width = 10.242713928222660000
-    end
-    object StrokeCube1: TStrokeCube
-      Color = claPurple
-      Width = 2.000000000000000000
-      Height = 1.000000000000000000
-      Depth = 1.000000000000000000
-    end
-  end
-  object Button1: TButton
-    Position.X = 248.000000000000000000
-    Position.Y = 664.000000000000000000
-    TabOrder = 1
-    Text = 'Generate'
-    OnClick = Button1Click
-  end
-  object LightMaterialSource1: TLightMaterialSource
-    Diffuse = claWhite
-    Ambient = xFF202020
-    Emissive = claNull
-    Specular = claAntiquewhite
-    Shininess = 30
-    Left = 216
-    Top = 704
-  end
   object Button2: TButton
-    Position.X = 968.000000000000000000
-    Position.Y = 104.000000000000000000
+    Position.X = 504.000000000000000000
+    Position.Y = 712.000000000000000000
     Size.Width = 144.000000000000000000
     Size.Height = 22.000000000000000000
     Size.PlatformDefault = False
-    TabOrder = 4
+    TabOrder = 3
     Text = 'View Negative Plane'
     OnClick = Button2Click
-  end
-  object ColorMaterialSource1: TColorMaterialSource
-    Color = claSkyblue
-    Left = 144
-    Top = 664
   end
 end
