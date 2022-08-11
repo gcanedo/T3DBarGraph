@@ -302,6 +302,12 @@ interface
 
 implementation
 
+function NiceNum(val: Single):String;
+begin
+  Result := Format('%.2f', [val]);
+  Result := Format('%g', [StrToFloat(Result)]);
+end;
+
 constructor TLegend3D.Create(AOwner: TComponent);
 var
   clMat: TColorMaterialSource;
@@ -965,7 +971,7 @@ var
 begin
   gb := Boss as T3DBarGraph;
   Result := [
-    Format('%s: %.2f', [gb.ZLabel, b.val]),
+    Format('%s: %s', [gb.ZLabel, NiceNum(b.val)]),
     Format('%s: %s', [gb.XLabel, DataXAxis.Data(b.col)]),
     Format('%s: %s', [gb.YLabel, DataYAxis.Data(b.row)])
   ];
@@ -1546,6 +1552,7 @@ begin
   bar.OnClick := BarClick;
   bar.OnMouseDown := BarMouseDown;
   bar.OnMouseMove := BarMouseMove;
+  bar.OnMouseUp := BarMouseUp;
   bar.EndUpdate;
   bar.Repaint;
 end;

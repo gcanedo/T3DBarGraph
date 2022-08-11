@@ -50,23 +50,22 @@ begin
        Button2.Text := 'View Negative Plane';
        BarGraph.ViewPositivePlane;
      end;
-
 end;
-
-
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
 
   BarGraph := T3DBarGraph.Create(Self);
   BarGraph.Parent := Self;
-  //BarGraph.Align := TAlignLayout.Client;
+  BarGraph.Align := TAlignLayout.Client;
 
   BarGraph.Width := 800;
   BarGraph.Height := 600;
   BarGraph.XLabel := 'SEASON';
   BarGraph.YLabel := 'TIME PERIOD';
   BarGraph.ZLabel := 'MEAN TEMPERATURE';
+
+
   BarGraph.Position.X := 0;
   BarGraph.Position.Y := 0;
 
