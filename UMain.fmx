@@ -10,7 +10,7 @@ object MainForm: TMainForm
   OnCreate = FormCreate
   DesignerMasterStyle = 0
   object Button2: TButton
-    Position.X = 504.000000000000000000
+    Position.X = 968.000000000000000000
     Position.Y = 712.000000000000000000
     Size.Width = 144.000000000000000000
     Size.Height = 22.000000000000000000
@@ -18,5 +18,18 @@ object MainForm: TMainForm
     TabOrder = 3
     Text = 'View Negative Plane'
     OnClick = Button2Click
+  end
+  object Viewport3D1: TViewport3D
+    DragMode = dmAutomatic
+    Position.X = 392.000000000000000000
+    Position.Y = 240.000000000000000000
+    Size.Width = 545.000000000000000000
+    Size.Height = 361.000000000000000000
+    Size.PlatformDefault = False
+    object Cube1: TCube
+      Width = 1.000000000000000000
+      Height = 1.000000000000000000
+      Depth = 1.000000000000000000
+    end
   end
 end

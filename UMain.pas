@@ -16,8 +16,11 @@ type
 
   TMainForm = class(TForm)
     Button2: TButton;
+    Viewport3D1: TViewport3D;
+    Cube1: TCube;
     procedure FormCreate(Sender: TObject);
     procedure Button2Click(Sender: TObject);
+    
   private
     { Private declarations }
   public
@@ -51,12 +54,13 @@ begin
 end;
 
 
+
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
 
   BarGraph := T3DBarGraph.Create(Self);
   BarGraph.Parent := Self;
-  BarGraph.Align := TAlignLayout.Client;
+  //BarGraph.Align := TAlignLayout.Client;
 
   BarGraph.Width := 800;
   BarGraph.Height := 600;
