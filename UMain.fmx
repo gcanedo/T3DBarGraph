@@ -19,17 +19,4 @@ object MainForm: TMainForm
     Text = 'View Negative Plane'
     OnClick = Button2Click
   end
-  object Viewport3D1: TViewport3D
-    DragMode = dmAutomatic
-    Position.X = 392.000000000000000000
-    Position.Y = 240.000000000000000000
-    Size.Width = 545.000000000000000000
-    Size.Height = 361.000000000000000000
-    Size.PlatformDefault = False
-    object Cube1: TCube
-      Width = 1.000000000000000000
-      Height = 1.000000000000000000
-      Depth = 1.000000000000000000
-    end
-  end
 end

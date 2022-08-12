@@ -16,8 +16,6 @@ type
 
   TMainForm = class(TForm)
     Button2: TButton;
-    Viewport3D1: TViewport3D;
-    Cube1: TCube;
     procedure FormCreate(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     
@@ -54,10 +52,15 @@ end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
-
   BarGraph := T3DBarGraph.Create(Self);
   BarGraph.Parent := Self;
   BarGraph.Align := TAlignLayout.Client;
+
+  BarGraph.ZMin := -30;
+  BarGraph.ZMax := 30;
+  BarGraph.NumTicks := 8;
+  BarGraph.AutoScale := true;
+
 
   BarGraph.Width := 800;
   BarGraph.Height := 600;
@@ -69,7 +72,7 @@ begin
   BarGraph.Position.X := 0;
   BarGraph.Position.Y := 0;
 
-  BarGraph.Add(0, 0, -14, claGreen);
+  BarGraph.Add(0, 0, -15, claGreen);
   BarGraph.Add(1, 0, 14, claPurple);
   BarGraph.Add(2, 0, 14, claRed);
 
@@ -94,6 +97,8 @@ begin
   BarGraph.AddXLabel(1, 'SUMMER');
   BarGraph.AddXLabel(2, 'AUTUMN');
   BarGraph.AddXLabel(3, 'WINTER');
+
+
 end;
 
 

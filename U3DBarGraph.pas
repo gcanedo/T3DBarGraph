@@ -41,9 +41,6 @@ interface
     PLANE_DEPTH = 0.001;
     PLANE_OPACITY = 1;
 
-    DEFAULT_NUMTICKS = 10;
-    DEFAULT_ZMAX = 30;
-    DEFAULT_ZMIN = -20;
 
     DURATION_CAMERA_CHANGE_VIEW_PLANE = 0.5;
     SIZE_PANEL_TICKS = 1;
@@ -52,16 +49,35 @@ interface
     BAR_SELECTED_DEFAULT_COLOR = claBlue;
 
 
-    //// CAMERA ////////
+    //// Z Axis  ///
+
+    ZAXIS_DEFAULT_NUMTICKS = 10;
+    AXIS_DEFAULT_ZMAX = 20;
+    AXIS_DEFAULT_ZMIN = -20;
+
+    //// GENERAL SETTINGS////////
     ROTATION_STEP = 0.3;
-
-    /// QUALITY //////
-    ///
     DEFAULT_RESOLUTION = 200;
-
-
+    ZOOM_STEP = 2;
+    CAMERA_MAX_Z = -2;
+    CAMERA_MIN_Z = -102;
 
   type
+
+    TGlobalData = class(TObject)
+      NumTicks: Integer;
+      FZMin, FZMax: Single;
+      AutoScale: Boolean;
+      DataMin, DataMax: Single;
+      constructor Create;
+      function GetZMin: Single;
+      procedure SetZMin(val: Single);
+      function GetZMax: Single;
+      procedure SetZMax(val: Single);
+      property ZMin: Single read GetZMin write SetZMin;
+      property ZMax: Single read GetZMax write SetZMax;
+    end;
+
     TInfoStr = Array of String;
     TMainContainer = class;
     TOnUpdateEvent = procedure of object;
@@ -113,6 +129,7 @@ interface
         val: Single;
         fcolor: TAlphaColor;
         FIsSelected: Boolean;
+        Stg: TMainContainer;
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
         procedure SetIsSelected(val: Boolean);
@@ -139,8 +156,8 @@ interface
       public
         FOnUpdate: TOnUpdateEvent;
         FRowCount, FColCount: Integer;
-        DataMin, DataMax: Single;
-        Scale: Single;
+
+
         Legend: TLegend3D;
         Stg: TMainContainer;
         procedure UnSelected(ExceptBar: TBar = Nil);
@@ -227,11 +244,13 @@ interface
         procedure ResizeBordersR(Q: TRectangle3D);
         procedure ResizeBordersL(Q: TRectangle3D);
       public
+        FGlobal: TGlobalData;
+
         XYPlane, XZPlane, YZPlane: TRectangle3D;
         PanelRightTicks, PanelLeftTicks: TPanelTicks;
         BarContainer: TBarContainer;
         HalfPlaneHeight: Single;
-        NumTicks: Integer;
+
         FZLabel: String;
 
         DataYAxis: TInfoAxis;
@@ -246,16 +265,42 @@ interface
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
         procedure ResizePlanes;
+        procedure Invalidate;
+        function GetScale: Single;
+
+
         procedure PanelPaint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
         function RequestData(b: Tbar): TInfoStr;
 
+
+        function GetGlobalData: TGlobalData;
+        property global: TGlobalData read GetGlobalData;
+
+
+        property Scale: Single read GetScale;
+
     end;
+
 
     T3DBarGraph = class(TViewport3D)
       private
         dir: Integer;
         FDown: TPointF;
 
+
+        function GetZMin: Single;
+        procedure SetZMin(val: Single);
+        function GetZMax: Single;
+        procedure SetZMax(val: Single);
+        function GetNumTicks: Integer;
+        procedure SetNumTicks(val: Integer);
+
+        function GetAutoScale: Boolean;
+        procedure SetAutoScale(val: Boolean);
+
+
+
+        procedure DoZoom(aIn: Boolean);
         procedure MouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean);
         procedure MouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
         procedure MouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
@@ -274,6 +319,7 @@ interface
 
       protected
       public
+        globalVars: TGlobalData;
         Stage: TMainContainer;
         FrontCamera: TCamera;
         status: String;
@@ -298,6 +344,11 @@ interface
         property XLabel: String read GetXLabel write SetXLabel;
 
       published
+
+        property ZMin: Single read GetZMin write SetZMin;
+        property ZMax: Single read GetZMax write SetZMax;
+        property NumTicks: Integer read GetNumTicks write SetNumTicks;
+        property AutoScale: Boolean read GetAutoScale write SetAutoScale;
     end;
 
 implementation
@@ -306,6 +357,42 @@ function NiceNum(val: Single):String;
 begin
   Result := Format('%.2f', [val]);
   Result := Format('%g', [StrToFloat(Result)]);
+end;
+
+constructor TGlobalData.Create;
+begin
+  DataMin := MaxSingle;
+  DataMax := MinSingle;
+  FZMin := AXIS_DEFAULT_ZMIN;
+  FZMax := AXIS_DEFAULT_ZMAX;
+  NumTicks := ZAXIS_DEFAULT_NUMTICKS;
+  AutoScale := false;
+end;
+
+function TGlobalData.GetZMin: Single;
+begin
+  if (AutoScale) and (DataMin <> MaxSingle) then
+    Result := DataMin
+  else
+    Result := FZMin;
+end;
+
+procedure TGlobalData.SetZMin(val: Single);
+begin
+  if val <> FZMin then FZMin := val;
+end;
+
+function TGlobalData.GetZMax: Single;
+begin
+  if (AutoScale) and (DataMax <> MinSingle) then
+    Result := DataMax
+  else
+    Result := FZMax;
+end;
+
+procedure TGlobalData.SetZMax(val: Single);
+begin
+  if val <> FZMax then FZMax := val;
 end;
 
 constructor TLegend3D.Create(AOwner: TComponent);
@@ -695,6 +782,7 @@ constructor TPanelTicks.Create(AOwner: TComponent);
 begin
   inherited;
   Stg := AOwner as TMainContainer;
+
   MaterialBackSource := Stg.ColorPlane;
   MaterialShaftSource := Stg.ColorPlane;
   MaterialSource := Stg.ColorPlane;
@@ -737,7 +825,8 @@ end;
 
 procedure TPanelTicks.ShowPositiveSpace;
 begin
-  StartNum.X := DEFAULT_ZMIN;
+
+  StartNum.X := Stg.global.ZMin;
   StartNum.Y := 1;
 
   if tag = 1 then
@@ -756,7 +845,7 @@ end;
 
 procedure TPanelTicks.ShowNegativeSpace;
 begin
-  StartNum.X := DEFAULT_ZMAX;
+  StartNum.X := Stg.global.ZMax;
   StartNum.Y := -1;
 
   if tag = 1 then
@@ -784,12 +873,13 @@ var
   s: String;
   I: Integer;
 begin
-  DeltaNum := (DEFAULT_ZMAX - DEFAULT_ZMIN)/Stg.NumTicks;
-  num := DEFAULT_ZMIN;
+  DeltaNum := (Stg.global.ZMax - Stg.global.ZMin)/Stg.global.NumTicks;
+  num := Stg.global.ZMin;
+
   Result := 0;
-  for I := 0 to Stg.NumTicks do
+  for I := 0 to Stg.global.NumTicks do
     begin
-      s := FloatToStr(num);
+      s := NiceNum(num);
       Result := Max(Result, C.TextWidth(s));
       num := num + DeltaNum;
     end;
@@ -810,12 +900,12 @@ begin
   RefY := UnitsToPixels(PANEL_PAD + Stg.XZPlane.Height);
   Canvas.Font.Size := UnitsToPixels(PANEL_PAD);
 
-  dy := Stg.XZPlane.Height/Stg.NumTicks;
-  DeltaNum := (DEFAULT_ZMAX - DEFAULT_ZMIN)/Stg.NumTicks;
+  dy := Stg.XZPlane.Height/Stg.global.NumTicks;
+  DeltaNum := (Stg.global.ZMax - Stg.global.ZMin)/Stg.global.NumTicks;
   wmax := GetWidthMax(Canvas);
 
   num := StartNum.X;
-  for I := 0 to Stg.NumTicks do
+  for I := 0 to Stg.global.NumTicks do
     begin
       RefX := ARect.Width;
 
@@ -824,7 +914,8 @@ begin
       w := UnitsToPixels(WIDTH_LINE_TICK);
       Canvas.DrawLine(TPointF.Create(RefX, RefY), TPointF.Create(RefX - w, RefY), 1);
       RefX := RefX - w - UnitsToPixels(GAP_LINE_NUMBER);
-      s := FloatToStr(num);
+      s := NiceNum(num);
+
       H := Canvas.TextHeight(s);
       Canvas.Fill.Color := FONT_COLOR_AXIS;
       TopLeft.X := RefX - wmax;
@@ -854,12 +945,12 @@ begin
 
   RefY := UnitsToPixels(PANEL_PAD + Stg.XZPlane.Height);
   Canvas.Font.Size := UnitsToPixels(PANEL_PAD);
-  dy := Stg.XZPlane.Height/Stg.NumTicks;
-  DeltaNum := (DEFAULT_ZMAX - DEFAULT_ZMIN)/Stg.NumTicks;
+  dy := Stg.XZPlane.Height/Stg.global.NumTicks;
+  DeltaNum := (Stg.global.ZMax - Stg.global.ZMin)/Stg.global.NumTicks;
   wmax := GetWidthMax(Canvas);
 
   num := StartNum.X;
-  for I := 0 to Stg.NumTicks do
+  for I := 0 to Stg.global.NumTicks do
     begin
       RefX := 0;
       Canvas.Fill.Color := DEFAULT_GRID_COLOR;
@@ -867,7 +958,7 @@ begin
       w := UnitsToPixels(WIDTH_LINE_TICK);
       Canvas.DrawLine(TPointF.Create(RefX, RefY), TPointF.Create(w, RefY), 1);
       RefX := w + UnitsToPixels(GAP_LINE_NUMBER);
-      s := FloatToStr(num);
+      s := NiceNum(num);
       H := Canvas.TextHeight(s);
       Canvas.Fill.Color := FONT_COLOR_AXIS;
       TopLeft.X := RefX;
@@ -977,6 +1068,25 @@ begin
   ];
 end;
 
+
+function TMainContainer.GetScale: Single;
+begin
+  Result := (global.ZMax - global.ZMin)/Height;
+end;
+
+function TMainContainer.GetGlobalData: TGlobalData;
+var
+  Root: TComponent;
+begin
+  if not Assigned(FGlobal)then
+    begin
+      Root := Owner;
+      while not (Root is T3DBarGraph) do Root := Root.Owner;
+      FGlobal := (Root as T3DBarGraph).globalVars;
+    end;
+  Result := FGlobal;
+end;
+
 constructor TMainContainer.Create(AOwner: TComponent);
 begin
   inherited;
@@ -986,7 +1096,7 @@ begin
   DataXAxis := TInfoAxis.Create;
   HitTest := false;
 
-  NumTicks := DEFAULT_NUMTICKS;
+
   FZLabel := '';
 
   ColorPlaneXY := TColorMaterialSource.Create(Self);
@@ -1044,13 +1154,19 @@ begin
   OnRender := MainRender;
 end;
 
+
+procedure TMainContainer.Invalidate;
+begin
+  BarContainer.UpdatePositions;
+  ResizePlanes;
+end;
+
 procedure TMainContainer.ResizePlanes;
 begin
   Width := BarContainer.ColCount*(BAR_WIDTH + 2*BAR_PAD);
   Depth := BarContainer.RowCount*(BAR_DEPTH + 2*BAR_PAD);
   HalfPlaneHeight := Max(Width, Depth);
   Height := HalfPlaneHeight;
-  BarContainer.Scale := (DEFAULT_ZMAX - DEFAULT_ZMIN)/Height;
 
   XZPlane.Width := Width;
   XZPlane.Depth := PLANE_DEPTH;
@@ -1074,9 +1190,8 @@ begin
   XYPlane.Depth := Depth;
   XYPlane.Height := PLANE_DEPTH;
   XYPlane.Position.X := 0;
-  XYPlane.Position.Y := Height/2 + DEFAULT_ZMIN/BarContainer.Scale;
+  XYPlane.Position.Y := Height/2 + global.Zmin/Scale;
   XYPlane.Position.Z := 0;
-
 
   PanelRightTicks.SetPosition(XZPlane);
   PanelLeftTicks.SetPositionLeft(YZPlane);
@@ -1087,15 +1202,18 @@ begin
 
   AxisYPanel.Height := XYPlane.Height;
   AxisYPanel.Depth := XYPlane.Depth;
-  AxisYPanel.Position.Point := XYPlane.Position.Point + TPoint3D.Create(XYPlane.Width/2 + AxisYPanel.Width/2, 0, 0);
+  AxisYPanel.Position.Point := XYPlane.Position.Point +
+  TPoint3D.Create(XYPlane.Width/2 + AxisYPanel.Width/2, 0, 0);
   AxisYPanel.Resize;
+
 
   AxisXPanel.Height := XYPlane.Height;
   AxisXPanel.Width := XYPlane.Width;
   AxisXPanel.Depth := SIZE_PANEL_TICKS;
 
 
-  AxisXPanel.Position.Point := XYPlane.Position.Point - TPoint3D.Create(0, 0, XYPlane.Depth/2 + AxisXPanel.Depth/2);
+  AxisXPanel.Position.Point := XYPlane.Position.Point -
+  TPoint3D.Create(0, 0, XYPlane.Depth/2 + AxisXPanel.Depth/2);
   AxisXPanel.Resize;
 
   Corner.Height := XYPlane.Height;
@@ -1167,7 +1285,7 @@ begin
     end;
 
 
-  for I := 1 to NumTicks - 1 do
+  for I := 1 to global.NumTicks - 1 do
     begin
       StartPoint := Ref +  TPoint3D.Create(0, -HeightBlock*I, 0);
       EndPoint := StartPoint +  TPoint3D.Create(0, 0, Depth);
@@ -1179,7 +1297,7 @@ end;
 
 begin
   WidthBlock := BAR_WIDTH + 2*BAR_PAD;
-  HeightBlock := YZPlane.Height/NumTicks;
+  HeightBlock := YZPlane.Height/global.NumTicks;
 
   CenterPoint := TPoint3D.Create(YZPlane.Width/2, YZPlane.Height/2, 0);
   TopLeft := TPoint3D.Create(YZPlane.Width/2, YZPlane.Height/2, -YZPlane.Depth/2);
@@ -1248,7 +1366,7 @@ begin
       Context.DrawLine(StartPoint, EndPoint, 1, DEFAULT_GRID_COLOR);
     end;
 
-  for I := 1 to NumTicks - 1 do
+  for I := 1 to global.NumTicks - 1 do
     begin
       StartPoint := Ref +  TPoint3D.Create(0, -HeightBlock*I, 0);
       EndPoint := StartPoint +  TPoint3D.Create(Width, 0, 0);
@@ -1259,7 +1377,7 @@ end;
 
 begin
   WidthBlock := BAR_WIDTH + 2*BAR_PAD;
-  HeightBlock := XZPlane.Height/NumTicks;
+  HeightBlock := XZPlane.Height/global.NumTicks;
 
   CenterPoint := TPoint3D.Create(XZPlane.Width/2, XZPlane.Height/2, 0);
   TopLeft := TPoint3D.Create(-XZPlane.Width/2, XZPlane.Height/2, -XZPlane.Depth/2);
@@ -1433,8 +1551,7 @@ begin
   Stg := AOwner as TMainContainer;
   FRowCount := DEFAULT_ROWCOUNT;
   FColCount := DEFAULT_COLCOUNT;
-  DataMin := MaxSingle;
-  DataMax := MinSingle;
+
   Stg.DataYAxis.Count := FRowCount;
   Stg.DataXAxis.Count := FColCount;
 
@@ -1444,6 +1561,8 @@ end;
 constructor TBar.Create(AOwner: TComponent);
 begin
   inherited;
+  Stg := (AOwner as TBarContainer).Stg;
+
   FIsSelected := false;
 end;
 
@@ -1493,6 +1612,7 @@ var
   WB, DB: Single;
   DH: Single;
 begin
+  Height := Abs(Val/Stg.Scale);
   WB := BAR_WIDTH + 2*BAR_PAD;
   DB := BAR_DEPTH + 2*BAR_PAD;
   RefPoint := TPoint3D.Create(-ColCount*WB/2, 0, RowCount*DB/2);
@@ -1543,7 +1663,6 @@ begin
 
   bar.Width := BAR_WIDTH;
   bar.Depth := BAR_DEPTH;
-  bar.Height := Abs(Value/Scale);
   bar.SetPosition(RowCount, ColCount);
   bar.color := cl;
   bar.HitTest := true;
@@ -1582,22 +1701,25 @@ var
   bar: TBar;
 begin
   bar := IndexOf(row, col);
+  UpdatePositions;
   if (bar <> Nil) and (bar.val <> Value) then
     begin
       bar.val := Value;
-      bar.Height := Abs(Value/Scale);
+      bar.Height := Abs(Value/Stg.Scale);
       bar.SetPosition(RowCount, ColCount);
-      DataMin := Min(DataMin, value);
-      DataMax := Max(DataMax, value);
+      Stg.global.DataMin := Min(Stg.global.DataMin, value);
+      Stg.global.DataMax := Max(Stg.global.DataMax, value);
     end
   else
     begin
       RowCount := Max(RowCount, row + 1);
       ColCount := Max(ColCount, col + 1);
-      DataMin := Min(DataMin, value);
-      DataMax := Max(DataMax, value);
+      Stg.global.DataMin := Min(Stg.global.DataMin, value);
+      Stg.global.DataMax := Max(Stg.global.DataMax, value);
       CreateBar(row, col, Value, cl);
     end;
+
+
 end;
 
 procedure T3DBarGraph.ViewNegativePlane;
@@ -1692,15 +1814,72 @@ begin
   Result := Stage.FZLabel;
 end;
 
+function T3DBarGraph.GetZMin: Single;
+begin
+  Result := globalVars.ZMin;
+end;
+
+procedure T3DBarGraph.SetZMin(val: Single);
+begin
+  if val <> globalVars.ZMin then
+    begin
+      globalVars.ZMin := val;
+      Stage.Invalidate;
+    end;
+end;
+
+function T3DBarGraph.GetZMax: Single;
+begin
+  Result := globalVars.ZMax;
+end;
+
+function T3DBarGraph.GetAutoScale: Boolean;
+begin
+  Result := globalVars.AutoScale;
+end;
+
+procedure T3DBarGraph.SetAutoScale(val: Boolean);
+begin
+  if val <> globalVars.AutoScale then
+    begin
+      globalVars.AutoScale := true;
+      Stage.Invalidate;
+    end;
+end;
+
+procedure T3DBarGraph.SetZMax(val: Single);
+begin
+  if val <> globalVars.ZMax then
+    begin
+      globalVars.ZMax := val;
+      Stage.Invalidate;
+    end;
+end;
+
+function T3DBarGraph.GetNumTicks: Integer;
+begin
+  Result := globalVars.NumTicks;
+end;
+
+procedure T3DBarGraph.SetNumTicks(val: Integer);
+begin
+  if val <> globalVars.NumTicks then
+    begin
+      globalVars.NumTicks := val;
+      Stage.Invalidate;
+    end;
+end;
+
 constructor T3DBarGraph.Create(AOwner: TComponent);
 begin
   inherited;
+  globalVars := TGlobalData.Create;
+
   status := 'static';
   UsingDesignCamera := False;
   color := DEFAULT_BACKGROUND_COLOR;
   Stage := TMainContainer.Create(Self);
   Stage.Parent := Self;
-
 
   MyCamera := TDummy.Create(Self);
   MyCamera.Parent := self;
@@ -1741,9 +1920,23 @@ begin
   OnClick := ViewportClick;
 end;
 
+procedure T3DBarGraph.DoZoom(aIn: Boolean);
+var
+  newZ: Single;
+begin
+  if AIn then
+    newZ := FrontCamera.Position.Z + ZOOM_STEP
+  else
+    newZ := FrontCamera.Position.Z - ZOOM_STEP;
+
+  if (newZ < CAMERA_MAX_Z) and (newZ > CAMERA_MIN_Z) then
+     FrontCamera.Position.Z := newZ;
+end;
+
 procedure T3DBarGraph.MouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean);
 begin
-  FrontCamera.Position.Z := FrontCamera.Position.Z + 0.01*WheelDelta;
+  //FrontCamera.Position.Z := FrontCamera.Position.Z + 0.01*WheelDelta;
+  DoZoom(WheelDelta > 0);
 end;
 
 procedure T3DBarGraph.ViewportClick(Sender: TObject);
@@ -1794,6 +1987,7 @@ begin
   Stage.BarContainer.Add(row, col, Value, cl);
   Stage.DataYAxis.Count := row + 1;
   Stage.DataXAxis.Count := col + 1;
+  Stage.Invalidate;
 end;
 
 procedure T3DBarGraph.AddYLabel(row: Integer; val: String);
@@ -1808,6 +2002,7 @@ end;
 
 destructor T3DBarGraph.Destroy;
 begin
+  globalVars.Destroy;
   inherited;
 end;
 
