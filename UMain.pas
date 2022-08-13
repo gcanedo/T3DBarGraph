@@ -60,14 +60,14 @@ begin
   BarGraph.ZMax := 30;
   BarGraph.NumTicks := 8;
   BarGraph.AutoScale := true;
-
+  BarGraph.BackgroundColor := claBlueviolet;
+  BarGraph.XYPlaneColor := claBrown;
 
   BarGraph.Width := 800;
   BarGraph.Height := 600;
   BarGraph.XLabel := 'SEASON';
   BarGraph.YLabel := 'TIME PERIOD';
   BarGraph.ZLabel := 'MEAN TEMPERATURE';
-
 
   BarGraph.Position.X := 0;
   BarGraph.Position.Y := 0;

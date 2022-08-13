@@ -31,10 +31,10 @@ interface
     BAR_DEPTH = 0.5;
     DEFAULT_ROWCOUNT = 3;
     DEFAULT_COLCOUNT = 4;
-    DEFAULT_BACKGROUND_COLOR = claBlack;
+
 
     DEFAULT_PLANE_COLOR = claWhite;
-    DEFAULT_XYPLANE_COLOR = claAntiquewhite;
+
 
 
     DEFAULT_GRID_COLOR = claRed;
@@ -49,8 +49,18 @@ interface
     BAR_SELECTED_DEFAULT_COLOR = claBlue;
 
 
-    //// Z Axis  ///
 
+    ///// XY PLANE  ///////
+    ///
+    ///  XYPlaneBackgroundColor
+    XYPLANE_BACKGROUNDCOLOR = claAntiquewhite;
+
+
+    ///// GENERAL //////
+    BARGRAPH_DEFAULT_BACKGROUND_COLOR = claBlack;
+
+
+    //// Z Axis  ///
     ZAXIS_DEFAULT_NUMTICKS = 10;
     AXIS_DEFAULT_ZMAX = 20;
     AXIS_DEFAULT_ZMIN = -20;
@@ -69,6 +79,8 @@ interface
       FZMin, FZMax: Single;
       AutoScale: Boolean;
       DataMin, DataMax: Single;
+      XYPlaneBackgroundColor: TAlphaColor;
+
       constructor Create;
       function GetZMin: Single;
       procedure SetZMin(val: Single);
@@ -179,6 +191,7 @@ interface
       private
         info: TInfoAxis;
       public
+        Stg: TMainContainer;
         procedure Paint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
         procedure PaintR(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
         constructor Create(AOwner: TComponent); override;
@@ -190,14 +203,17 @@ interface
       public
         Sticker: TSticker;
         Lb: TTextLayer3D;
+        Stg: TMainContainer;
         constructor Create(AOwner: TComponent); override;
         procedure Resize;
+        procedure Invalidate;
     end;
 
     TAxisYPanel = class(TDummy)
       public
         TopSticker, BottomSticker: TGroupSticker;
         Base: TRectangle3D;
+        Stg: TMainContainer;
         constructor Create(AOwner: TComponent); override;
         procedure Resize;
     end;
@@ -206,6 +222,7 @@ interface
       public
         TopSticker, BottomSticker: TGroupSticker;
         Base: TRectangle3D;
+        Stg: TMainContainer;
         constructor Create(AOwner: TComponent); override;
         procedure Resize;
     end;
@@ -243,6 +260,8 @@ interface
         procedure CreateBorderPanels(P: TRectangle3D);
         procedure ResizeBordersR(Q: TRectangle3D);
         procedure ResizeBordersL(Q: TRectangle3D);
+
+        procedure SetColor;
       public
         FGlobal: TGlobalData;
 
@@ -336,6 +355,13 @@ interface
         procedure ViewPositivePlane;
         procedure SetStateRotationAngle(ang: TPoint3D);
 
+        function GetBackgroundColor: TAlphaColor;
+        procedure SetBackgroundColor(val: TAlphaColor);
+
+        function GetXYPlaneColor: TAlphaColor;
+        procedure SetXYPlaneColor(val: TAlphaColor);
+
+
         procedure AddYLabel(row: Integer; val: String);
         procedure AddXLabel(col: Integer; val: String);
 
@@ -349,6 +375,10 @@ interface
         property ZMax: Single read GetZMax write SetZMax;
         property NumTicks: Integer read GetNumTicks write SetNumTicks;
         property AutoScale: Boolean read GetAutoScale write SetAutoScale;
+
+
+        property BackgroundColor: TAlphaColor read GetBackgroundColor write SetBackgroundColor;
+        property XYPlaneColor: TAlphaColor read GetXYPlaneColor write SetXYPlaneColor;
     end;
 
 implementation
@@ -361,6 +391,9 @@ end;
 
 constructor TGlobalData.Create;
 begin
+  XYPlaneBackgroundColor := XYPLANE_BACKGROUNDCOLOR;
+
+
   DataMin := MaxSingle;
   DataMax := MinSingle;
   FZMin := AXIS_DEFAULT_ZMIN;
@@ -559,6 +592,7 @@ var
   ColorPlane: TColorMaterialSource;
 begin
   inherited;
+  Stg := AOwner as TMainContainer;
   tag := -1;
   TopSticker := TGroupSticker.Create(Self);
   TopSticker.RotationAngle.X := 90;
@@ -573,7 +607,10 @@ begin
   Base.Width := TopSticker.Width;
   Base.Parent := Self;
   ColorPlane := TColorMaterialSource.Create(Self);
-  ColorPlane.Color := DEFAULT_XYPLANE_COLOR;
+  ColorPlane.Color := Stg.global.XYPlaneBackgroundColor;
+
+
+
   Base.MaterialBackSource := ColorPlane;
   Base.MaterialShaftSource := ColorPlane;
   Base.MaterialSource := ColorPlane;
@@ -606,6 +643,7 @@ var
   ColorPlane: TColorMaterialSource;
 begin
   inherited;
+  Stg := AOwner as TMainContainer;
   tag := 1;
   TopSticker := TGroupSticker.Create(Self);
   TopSticker.RotationAngle.X := -90;
@@ -616,7 +654,8 @@ begin
   Base.Width := TopSticker.Width;
   Base.Parent := Self;
   ColorPlane := TColorMaterialSource.Create(Self);
-  ColorPlane.Color := DEFAULT_XYPLANE_COLOR;
+  ColorPlane.Color := Stg.global.XYPlaneBackgroundColor;
+
   Base.MaterialBackSource := ColorPlane;
   Base.MaterialShaftSource := ColorPlane;
   Base.MaterialSource := ColorPlane;
@@ -645,9 +684,16 @@ begin
   BottomSticker.Resize;
 end;
 
+procedure TGroupSticker.Invalidate;
+begin
+  Lb.Fill := TBrush.Create(TBrushKind.Solid, Stg.global.XYPlaneBackgroundColor);
+end;
+
 constructor TGroupSticker.Create(AOwner: TComponent);
 begin
   inherited;
+  Stg := (AOwner as TFMXObject).Owner as TMainContainer;
+
   Tag := AOwner.Tag;
   Width := SIZE_PANEL_TICKS;
 
@@ -662,7 +708,8 @@ begin
   Lb.Resolution := DEFAULT_RESOLUTION;
   Lb.RotationAngle.Z := -90;
   Lb.Color := FONT_COLOR_AXIS;
-  Lb.Fill := TBrush.Create(TBrushKind.Solid, DEFAULT_XYPLANE_COLOR);
+  Lb.Fill := TBrush.Create(TBrushKind.Solid, Stg.global.XYPlaneBackgroundColor);
+
   Lb.Font.Size := Lb.Resolution*PANEL_PAD;
   Lb.Position.X := Width/2 - Lb.Height/2;
 
@@ -702,7 +749,9 @@ var
   b: TInfoCell;
   Flags: TFillTextFlags;
 begin
-  Canvas.Clear(DEFAULT_XYPLANE_COLOR);
+  Canvas.Clear(Stg.global.XYPlaneBackgroundColor);
+
+
   Canvas.Font.Size := (0.1*Resolution);
 
   PxHeightBlock := ARect.Height/info.blockCount;
@@ -740,7 +789,7 @@ var
   Flags: TFillTextFlags;
 begin
 
-  Canvas.Clear(DEFAULT_XYPLANE_COLOR);
+  Canvas.Clear(Stg.global.XYPlaneBackgroundColor);
   Canvas.Font.Size := (0.1*Resolution);
 
   PxHeightBlock := ARect.Height/info.blockCount;
@@ -772,6 +821,7 @@ end;
 constructor TSticker.Create(AOwner: TComponent);
 begin
   inherited;
+  Stg := (AOwner as TGroupSticker).Stg;
   DeleteChildren;
   tag := AOwner.Tag;
   HitTest := false;
@@ -1095,12 +1145,10 @@ begin
   DataYAxis := TInfoAxis.Create;
   DataXAxis := TInfoAxis.Create;
   HitTest := false;
-
-
   FZLabel := '';
 
   ColorPlaneXY := TColorMaterialSource.Create(Self);
-  ColorPlaneXY.Color := DEFAULT_XYPLANE_COLOR;
+  ColorPlaneXY.Color := global.XYPlaneBackgroundColor;
   ColorPlane := TColorMaterialSource.Create(Self);
   ColorPlane.Color := DEFAULT_PLANE_COLOR;
 
@@ -1134,17 +1182,11 @@ begin
   Corner.Parent := Self;
   Corner.Width := SIZE_PANEL_TICKS;
   Corner.Depth := Corner.Width;
-
-  var CP: TColorMaterialSource;
-  CP := TColorMaterialSource.Create(Self);
-  CP.Color := DEFAULT_XYPLANE_COLOR;
-
-  Corner.MaterialBackSource := CP;
-  Corner.MaterialShaftSource := CP;
-  Corner.MaterialSource := CP;
+  Corner.MaterialBackSource := ColorPlaneXY;
+  Corner.MaterialShaftSource := ColorPlaneXY;
+  Corner.MaterialSource := ColorPlaneXY;
   Corner.HitTest := false;
   Corner.Opacity := PLANE_OPACITY;
-
 
   ResizePlanes;
 
@@ -1159,6 +1201,16 @@ procedure TMainContainer.Invalidate;
 begin
   BarContainer.UpdatePositions;
   ResizePlanes;
+
+  AxisYPanel.TopSticker.Invalidate;
+  AxisYPanel.BottomSticker.Invalidate;
+  AxisXPanel.TopSticker.Invalidate;
+  AxisXPanel.BottomSticker.Invalidate;
+
+
+
+
+  SetColor;
 end;
 
 procedure TMainContainer.ResizePlanes;
@@ -1389,6 +1441,19 @@ begin
   }
 
   Context.DrawCube(CenterPoint, TPoint3D.Create(XZPlane.Width, XZPlane.Height, XZPlane.Depth), 1, DEFAULT_GRID_COLOR);
+end;
+
+
+procedure TMainContainer.SetColor;
+begin
+  //var CP: TColorMaterialSource;
+  ColorPlaneXY.Color := global.XYPlaneBackgroundColor;
+  {
+  (Corner.MaterialBackSource as TColorMaterialSource).Color := global.XYPlaneBackgroundColor;
+  (Corner.MaterialShaftSource as TColorMaterialSource).Color := global.XYPlaneBackgroundColor;
+  (Corner.MaterialSource as TColorMaterialSource).Color := global.XYPlaneBackgroundColor;
+  }
+
 end;
 
 
@@ -1838,6 +1903,34 @@ begin
   Result := globalVars.AutoScale;
 end;
 
+function T3DBarGraph.GetBackgroundColor: TAlphaColor;
+begin
+  Result := color;
+end;
+
+
+function T3DBarGraph.GetXYPlaneColor: TAlphaColor;
+begin
+  Result := globalVars.XYPlaneBackgroundColor;
+end;
+
+procedure T3DBarGraph.SetXYPlaneColor(val: TAlphaColor);
+begin
+  if val <> globalVars.XYPlaneBackgroundColor then
+    begin
+      globalVars.XYPlaneBackgroundColor := val;
+      Stage.Invalidate;
+    end;
+end;
+
+procedure T3DBarGraph.SetBackgroundColor(val: TAlphaColor);
+begin
+  if val <> color then
+    begin
+      color := val;
+    end;
+end;
+
 procedure T3DBarGraph.SetAutoScale(val: Boolean);
 begin
   if val <> globalVars.AutoScale then
@@ -1877,7 +1970,8 @@ begin
 
   status := 'static';
   UsingDesignCamera := False;
-  color := DEFAULT_BACKGROUND_COLOR;
+  color := BARGRAPH_DEFAULT_BACKGROUND_COLOR;
+
   Stage := TMainContainer.Create(Self);
   Stage.Parent := Self;
 
