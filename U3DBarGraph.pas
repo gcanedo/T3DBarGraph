@@ -24,7 +24,7 @@ interface
     WIDTH_LINE_TICK = 0.100;
     HEIGHT_LINE_TICK = 0.040;
     GAP_LINE_NUMBER = 0.0625;
-    FONT_COLOR_AXIS = claBlack;
+
 
     BAR_PAD = 0.25;
     BAR_WIDTH = 0.5;
@@ -33,31 +33,26 @@ interface
     DEFAULT_COLCOUNT = 4;
 
 
-    DEFAULT_PLANE_COLOR = claWhite;
-
-
-
-    DEFAULT_GRID_COLOR = claRed;
     PLANE_DEPTH = 0.001;
     PLANE_OPACITY = 1;
 
 
-    DURATION_CAMERA_CHANGE_VIEW_PLANE = 0.5;
+
     SIZE_PANEL_TICKS = 1;
     SIZE_LABEL = 0.3;
 
     BAR_SELECTED_DEFAULT_COLOR = claBlue;
 
-
+    ///// XZ and YZ Planes /////
+    XZPLANE_YZPLANE_DEFAULT_COLOR = claWhite;
 
     ///// XY PLANE  ///////
-    ///
-    ///  XYPlaneBackgroundColor
     XYPLANE_BACKGROUNDCOLOR = claAntiquewhite;
-
 
     ///// GENERAL //////
     BARGRAPH_DEFAULT_BACKGROUND_COLOR = claBlack;
+    BARGRAPH_DEFAULT_GRID_COLOR = claRed;
+    BARGRAPH_FONT_COLOR = claBlack;
 
 
     //// Z Axis  ///
@@ -71,6 +66,7 @@ interface
     ZOOM_STEP = 2;
     CAMERA_MAX_Z = -2;
     CAMERA_MIN_Z = -102;
+    DURATION_CAMERA_CHANGE_VIEW_PLANE = 0.5;
 
   type
 
@@ -80,7 +76,9 @@ interface
       AutoScale: Boolean;
       DataMin, DataMax: Single;
       XYPlaneBackgroundColor: TAlphaColor;
-
+      BarGraphGridColor: TAlphaColor;
+      BarGraphFontColor: TAlphaColor;
+      XZPlaneYZPlaneBackgroundColor: TAlphaColor;
       constructor Create;
       function GetZMin: Single;
       procedure SetZMin(val: Single);
@@ -244,6 +242,7 @@ interface
         function GetWidthMax(c: TCanvas): Single;
         procedure tempPaint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
         procedure UpdateLabels;
+        procedure Invalidate;
     end;
 
     TMainContainer = class(TDummy)
@@ -361,6 +360,17 @@ interface
         function GetXYPlaneColor: TAlphaColor;
         procedure SetXYPlaneColor(val: TAlphaColor);
 
+        function GetXZandYZPlaneColor: TAlphaColor;
+        procedure SetXZandYZPlaneColor(val: TAlphaColor);
+
+
+        function GetGridColor: TAlphaColor;
+        procedure SetGridColor(val: TAlphaColor);
+
+        function GetBarGraphFontColor: TAlphaColor;
+        procedure SetBarGraphFontColor(val: TAlphaColor);
+
+
 
         procedure AddYLabel(row: Integer; val: String);
         procedure AddXLabel(col: Integer; val: String);
@@ -379,6 +389,10 @@ interface
 
         property BackgroundColor: TAlphaColor read GetBackgroundColor write SetBackgroundColor;
         property XYPlaneColor: TAlphaColor read GetXYPlaneColor write SetXYPlaneColor;
+        property GridColor: TAlphaColor read GetGridColor write SetGridColor;
+        property FontColor: TAlphaColor read GetBarGraphFontColor write SetBarGraphFontColor;
+
+        property XZandYZPlaneColor: TAlphaColor read GetXZandYZPlaneColor write SetXZandYZPlaneColor;
     end;
 
 implementation
@@ -392,7 +406,10 @@ end;
 constructor TGlobalData.Create;
 begin
   XYPlaneBackgroundColor := XYPLANE_BACKGROUNDCOLOR;
+  XZPlaneYZPlaneBackgroundColor := XZPLANE_YZPLANE_DEFAULT_COLOR;
 
+  BarGraphGridColor := BARGRAPH_DEFAULT_GRID_COLOR;
+  BarGraphFontColor := BARGRAPH_FONT_COLOR;
 
   DataMin := MaxSingle;
   DataMax := MinSingle;
@@ -687,6 +704,7 @@ end;
 procedure TGroupSticker.Invalidate;
 begin
   Lb.Fill := TBrush.Create(TBrushKind.Solid, Stg.global.XYPlaneBackgroundColor);
+  Lb.Color := Stg.global.BarGraphFontColor;
 end;
 
 constructor TGroupSticker.Create(AOwner: TComponent);
@@ -707,7 +725,7 @@ begin
 
   Lb.Resolution := DEFAULT_RESOLUTION;
   Lb.RotationAngle.Z := -90;
-  Lb.Color := FONT_COLOR_AXIS;
+  Lb.Color := Stg.global.BarGraphFontColor;
   Lb.Fill := TBrush.Create(TBrushKind.Solid, Stg.global.XYPlaneBackgroundColor);
 
   Lb.Font.Size := Lb.Resolution*PANEL_PAD;
@@ -756,7 +774,8 @@ begin
 
   PxHeightBlock := ARect.Height/info.blockCount;
   tickSizePx := TPointF.Create(WIDTH_LINE_TICK, HEIGHT_LINE_TICK)*Resolution;
-  Canvas.Fill.Color := DEFAULT_GRID_COLOR;
+  Canvas.Fill.Color := Stg.global.BarGraphGridColor;
+
   for I := 0 to info.BlockCount - 1 do
     begin
       yRef :=  PxHeightBlock*I;
@@ -767,7 +786,7 @@ begin
 
   xRef := tickSizePx.X + GAP_LINE_NUMBER*Resolution;
   PxWidthBlock := ARect.Width - xRef;
-  Canvas.Fill.Color := FONT_COLOR_AXIS;
+  Canvas.Fill.Color := Stg.global.BarGraphFontColor;
   for I := 0 to length(info.blocks) - 1 do
     begin
       b := info.blocks[I];
@@ -794,7 +813,7 @@ begin
 
   PxHeightBlock := ARect.Height/info.blockCount;
   tickSizePx := TPointF.Create(WIDTH_LINE_TICK, HEIGHT_LINE_TICK)*Resolution;
-  Canvas.Fill.Color := DEFAULT_GRID_COLOR;
+  Canvas.Fill.Color := Stg.global.BarGraphGridColor;
   xRef := ARect.Width - tickSizePx.X;
   for I := 0 to info.BlockCount - 1 do
     begin
@@ -806,7 +825,7 @@ begin
 
   xRef := 0;
   PxWidthBlock := ARect.Width - tickSizePx.X - GAP_LINE_NUMBER*Resolution;
-  Canvas.Fill.Color := FONT_COLOR_AXIS;
+  Canvas.Fill.Color := Stg.global.BarGraphFontColor;
   for I := 0 to length(info.blocks) - 1 do
     begin
       b := info.blocks[I];
@@ -857,7 +876,7 @@ begin
   (ZLabelTop.Children[0] as TText).HitTest := false;
 
 
-  ZlabelTop.Color := FONT_COLOR_AXIS;
+  ZlabelTop.Color := Stg.global.BarGraphFontColor;
   ZlabelTop.Font.Size := ZLabelTop.Resolution*PANEL_PAD;
 
 
@@ -869,7 +888,7 @@ begin
 
   ZLabelBottom.Resolution := DEFAULT_RESOLUTION;
   ZLabelBottom.RotationAngle.Z := -90;
-  ZlabelBottom.Color := FONT_COLOR_AXIS;
+  ZlabelBottom.Color := Stg.global.BarGraphFontColor;
   ZlabelBottom.Font.Size := ZLabelBottom.Resolution*PANEL_PAD;
 end;
 
@@ -959,15 +978,15 @@ begin
     begin
       RefX := ARect.Width;
 
-      Canvas.Fill.Color := DEFAULT_GRID_COLOR;
-      Canvas.Stroke.Color := DEFAULT_GRID_COLOR;
+      Canvas.Fill.Color := Stg.global.BarGraphGridColor;
+      Canvas.Stroke.Color := Stg.global.BarGraphGridColor;
       w := UnitsToPixels(WIDTH_LINE_TICK);
       Canvas.DrawLine(TPointF.Create(RefX, RefY), TPointF.Create(RefX - w, RefY), 1);
       RefX := RefX - w - UnitsToPixels(GAP_LINE_NUMBER);
       s := NiceNum(num);
 
       H := Canvas.TextHeight(s);
-      Canvas.Fill.Color := FONT_COLOR_AXIS;
+      Canvas.Fill.Color := Stg.global.BarGraphFontColor;
       TopLeft.X := RefX - wmax;
       TopLeft.Y := RefY - H/2;
       R := TRectF.Create(TopLeft, wmax, H);
@@ -1003,14 +1022,14 @@ begin
   for I := 0 to Stg.global.NumTicks do
     begin
       RefX := 0;
-      Canvas.Fill.Color := DEFAULT_GRID_COLOR;
-      Canvas.Stroke.Color := DEFAULT_GRID_COLOR;
+      Canvas.Fill.Color := Stg.global.BarGraphGridColor;
+      Canvas.Stroke.Color := Stg.global.BarGraphGridColor;
       w := UnitsToPixels(WIDTH_LINE_TICK);
       Canvas.DrawLine(TPointF.Create(RefX, RefY), TPointF.Create(w, RefY), 1);
       RefX := w + UnitsToPixels(GAP_LINE_NUMBER);
       s := NiceNum(num);
       H := Canvas.TextHeight(s);
-      Canvas.Fill.Color := FONT_COLOR_AXIS;
+      Canvas.Fill.Color := Stg.global.BarGraphFontColor;
       TopLeft.X := RefX;
       TopLeft.Y := RefY - H/2;
       R := TRectF.Create(TopLeft, wmax, H);
@@ -1018,6 +1037,13 @@ begin
       RefY := RefY - UnitsToPixels(dy);
       num := num + StartNum.Y*DeltaNum;
     end;
+end;
+
+procedure TPanelTicks.Invalidate;
+begin
+  UpdateLabels;
+  ZlabelTop.Color := Stg.global.BarGraphFontColor;
+  ZlabelBottom.Color := Stg.global.BarGraphFontColor;
 end;
 
 procedure TPanelTicks.UpdateLabels;
@@ -1149,8 +1175,9 @@ begin
 
   ColorPlaneXY := TColorMaterialSource.Create(Self);
   ColorPlaneXY.Color := global.XYPlaneBackgroundColor;
+
   ColorPlane := TColorMaterialSource.Create(Self);
-  ColorPlane.Color := DEFAULT_PLANE_COLOR;
+  ColorPlane.Color := global.XZPlaneYZPlaneBackgroundColor;
 
   BarContainer := TBarContainer.Create(Self);
   BarContainer.Parent := Self;
@@ -1206,9 +1233,8 @@ begin
   AxisYPanel.BottomSticker.Invalidate;
   AxisXPanel.TopSticker.Invalidate;
   AxisXPanel.BottomSticker.Invalidate;
-
-
-
+  PanelRightTicks.Invalidate;
+  PanelLeftTicks.Invalidate;
 
   SetColor;
 end;
@@ -1333,7 +1359,7 @@ begin
     begin
       StartPoint := Ref +  TPoint3D.Create(0, 0, WidthBlock*I);
       EndPoint := StartPoint - TPoint3D.Create(0, Height, 0);
-      Context.DrawLine(StartPoint, EndPoint, 1, DEFAULT_GRID_COLOR);
+      Context.DrawLine(StartPoint, EndPoint, 1, global.BarGraphGridColor);
     end;
 
 
@@ -1341,7 +1367,7 @@ begin
     begin
       StartPoint := Ref +  TPoint3D.Create(0, -HeightBlock*I, 0);
       EndPoint := StartPoint +  TPoint3D.Create(0, 0, Depth);
-      Context.DrawLine(StartPoint, EndPoint, 1, DEFAULT_GRID_COLOR);
+      Context.DrawLine(StartPoint, EndPoint, 1, global.BarGraphGridColor);
     end;
 
 end;
@@ -1360,7 +1386,7 @@ begin
   DrawGrid(CenterPoint + TopLeft);
   }
 
-  Context.DrawCube(CenterPoint, TPoint3D.Create(YZPlane.Width, YZPlane.Height, YZPlane.Depth), 1, DEFAULT_GRID_COLOR);
+  Context.DrawCube(CenterPoint, TPoint3D.Create(YZPlane.Width, YZPlane.Height, YZPlane.Depth), 1, global.BarGraphGridColor);
 end;
 
 
@@ -1399,7 +1425,7 @@ end;
 
 procedure  TMainContainer.PanelPaint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
 begin
-  Canvas.Clear(MakeColor(DEFAULT_PLANE_COLOR, PLANE_OPACITY));
+  Canvas.Clear(MakeColor(global.XZPlaneYZPlaneBackgroundColor, PLANE_OPACITY));
 end;
 
 procedure TMainContainer.XZPlaneRender(Sender: TObject; Context: TContext3D);
@@ -1415,14 +1441,14 @@ begin
     begin
       StartPoint := Ref +  TPoint3D.Create(WidthBlock*I, 0, 0);
       EndPoint := StartPoint - TPoint3D.Create(0, Height, 0);
-      Context.DrawLine(StartPoint, EndPoint, 1, DEFAULT_GRID_COLOR);
+      Context.DrawLine(StartPoint, EndPoint, 1, global.BarGraphGridColor);
     end;
 
   for I := 1 to global.NumTicks - 1 do
     begin
       StartPoint := Ref +  TPoint3D.Create(0, -HeightBlock*I, 0);
       EndPoint := StartPoint +  TPoint3D.Create(Width, 0, 0);
-      Context.DrawLine(StartPoint, EndPoint, 1, DEFAULT_GRID_COLOR);
+      Context.DrawLine(StartPoint, EndPoint, 1, global.BarGraphGridColor);
     end;
 end;
 
@@ -1440,7 +1466,7 @@ begin
   DrawGrid(CenterPoint + TopLeft);
   }
 
-  Context.DrawCube(CenterPoint, TPoint3D.Create(XZPlane.Width, XZPlane.Height, XZPlane.Depth), 1, DEFAULT_GRID_COLOR);
+  Context.DrawCube(CenterPoint, TPoint3D.Create(XZPlane.Width, XZPlane.Height, XZPlane.Depth), 1, global.BarGraphGridColor);
 end;
 
 
@@ -1448,12 +1474,13 @@ procedure TMainContainer.SetColor;
 begin
   //var CP: TColorMaterialSource;
   ColorPlaneXY.Color := global.XYPlaneBackgroundColor;
+  ColorPlane.Color := global.XZPlaneYZPlaneBackgroundColor;
+
   {
   (Corner.MaterialBackSource as TColorMaterialSource).Color := global.XYPlaneBackgroundColor;
   (Corner.MaterialShaftSource as TColorMaterialSource).Color := global.XYPlaneBackgroundColor;
   (Corner.MaterialSource as TColorMaterialSource).Color := global.XYPlaneBackgroundColor;
   }
-
 end;
 
 
@@ -1482,14 +1509,14 @@ begin
     begin
       StartPoint := Ref +  TPoint3D.Create(WidthBlock*I, 0, 0);
       EndPoint := StartPoint - TPoint3D.Create(0, 0, Depth);
-      Context.DrawLine(StartPoint, EndPoint, 1, DEFAULT_GRID_COLOR);
+      Context.DrawLine(StartPoint, EndPoint, 1, global.BarGraphGridColor);
     end;
 
   for I := 1 to BarContainer.RowCount - 1 do
     begin
       StartPoint := Ref +  TPoint3D.Create(0, 0, -DepthBlock*I);
       EndPoint := StartPoint +  TPoint3D.Create(Width, 0, 0);
-      Context.DrawLine(StartPoint, EndPoint, 1, DEFAULT_GRID_COLOR);
+      Context.DrawLine(StartPoint, EndPoint, 1, global.BarGraphGridColor);
     end;
 
 end;
@@ -1505,7 +1532,7 @@ begin
   TopLeft := TPoint3D.Create(-XYPlane.Width/2, XYPlane.Height/2, XYPlane.Depth/2);
   DrawGrid(CenterPoint + TopLeft);
 
-  Context.DrawCube(CenterPoint, TPoint3D.Create(XYPlane.Width, XYPlane.Height, XYPlane.Depth), 1, DEFAULT_GRID_COLOR);
+  Context.DrawCube(CenterPoint, TPoint3D.Create(XYPlane.Width, XYPlane.Height, XYPlane.Depth), 1, global.BarGraphGridColor);
 end;
 
 procedure TMainContainer.MainRender(Sender: TObject; Context: TContext3D);
@@ -1906,6 +1933,49 @@ end;
 function T3DBarGraph.GetBackgroundColor: TAlphaColor;
 begin
   Result := color;
+end;
+
+function T3DBarGraph.GetBarGraphFontColor: TAlphaColor;
+begin
+  Result := globalVars.BarGraphFontColor;
+end;
+
+procedure T3DBarGraph.SetBarGraphFontColor(val: TAlphaColor);
+begin
+  if val <> globalVars.BarGraphFontColor then
+    begin
+      globalVars.BarGraphFontColor := val;
+      Stage.Invalidate;
+    end;
+end;
+
+function T3DBarGraph.GetGridColor: TAlphaColor;
+begin
+  Result := globalVars.BarGraphGridColor;
+end;
+
+procedure T3DBarGraph.SetGridColor(val: TAlphaColor);
+begin
+  if val <> globalVars.BarGraphGridColor then
+    begin
+      globalVars.BarGraphGridColor := val;
+      Stage.Invalidate;
+    end;
+end;
+
+
+function T3DBarGraph.GetXZandYZPlaneColor: TAlphaColor;
+begin
+  Result := globalVars.XZPlaneYZPlaneBackgroundColor;
+end;
+
+procedure T3DBarGraph.SetXZandYZPlaneColor(val: TAlphaColor);
+begin
+  if val <> globalVars.XZPlaneYZPlaneBackgroundColor then
+    begin
+      globalVars.XZPlaneYZPlaneBackgroundColor := val;
+      Stage.Invalidate;
+    end;
 end;
 
 

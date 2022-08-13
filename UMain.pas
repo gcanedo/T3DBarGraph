@@ -60,8 +60,12 @@ begin
   BarGraph.ZMax := 30;
   BarGraph.NumTicks := 8;
   BarGraph.AutoScale := true;
-  BarGraph.BackgroundColor := claBlueviolet;
-  BarGraph.XYPlaneColor := claBrown;
+  BarGraph.BackgroundColor := claBlack;
+  BarGraph.XYPlaneColor := claYellow;
+  BarGraph.GridColor := claBlack;
+  BarGraph.FontColor := claBlack;
+  BarGraph.XZandYZPlaneColor := claYellow;
+
 
   BarGraph.Width := 800;
   BarGraph.Height := 600;
