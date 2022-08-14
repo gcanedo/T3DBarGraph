@@ -17,9 +17,8 @@ interface
     LEGEND_BOX_DEPTH = 0.05;
     LEGEND_BOX_HEIGHT_POLE = 0.50;
     LEGEND_BOX_COLOR_POLE = claBlack;
-
-    LEGEND_BOX_BACKGROUND_COLOR_STICKER = claYellow;
-    LEGEND_BOX_FONT_COLOR = claBlack;
+    LEGEND_BACKGROUND_COLOR_STICKER = claYellow;
+    LEGEND_FONT_COLOR = claBlack;
 
     /// AXIS DIMS //////
     SIZE_PANEL_TICKS = 1;
@@ -79,6 +78,8 @@ interface
       XZPlaneYZPlaneBackgroundColor: TAlphaColor;
       BarColor: TAlphaColor;
       BarSelectedColor: TAlphaColor;
+      LegendBackgroundColor: TAlphaColor;
+      LegendFontColor: TAlphaColor;
 
       constructor Create;
       function GetZMin: Single;
@@ -116,6 +117,7 @@ interface
       public
         info: TInfoStr;
         Dims: TSizeF;
+        Stg: TMainContainer;
         procedure Paint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
         constructor Create(AOwner: TComponent); override;
         procedure SetInfo(Val: TInfoStr);
@@ -127,6 +129,7 @@ interface
     TSign = class(TDummy)
       StickerA, StickerB: TStickerInfo;
       Wood: TRectangle3D;
+      Stg: TMainContainer;
       constructor Create(AOwner: TComponent); override;
     end;
 
@@ -154,9 +157,12 @@ interface
       Sign: TSign;
       Pole: TCylinder;
       bar: TBar;
+      Stg: TMainContainer;
       procedure SetData(val: TInfoStr);
+      procedure Invalidate;
       constructor Create(AOwner: TComponent); override;
       property Data: TInfoStr write SetData;
+
     end;
 
 
@@ -377,6 +383,13 @@ interface
         function GetBarSelectedColor: TAlphaColor;
         procedure SetBarSelectedColor(val: TAlphaColor);
 
+        function GetLegendBackgroundColor: TAlphaColor;
+        procedure SetLegendBackgroundColor(val: TAlphaColor);
+
+        function GetLegendFontColor: TAlphaColor;
+        procedure SetLegendFontColor(val: TAlphaColor);
+
+
         procedure AddYLabel(row: Integer; val: String);
         procedure AddXLabel(col: Integer; val: String);
 
@@ -402,6 +415,8 @@ interface
         property XZandYZPlaneColor: TAlphaColor read GetXZandYZPlaneColor write SetXZandYZPlaneColor;
         property BarColor: TAlphaColor read GetBarColor write SetBarColor;
         property BarSelectedColor: TAlphaColor read GetBarSelectedColor write SetBarSelectedColor;
+        property LegendBackgroundColor: TAlphaColor read GetLegendBackgroundColor write SetLegendBackgroundColor;
+        property LegendFontColor: TAlphaColor read GetLegendFontColor write SetLegendFontColor;
 
     end;
 
@@ -415,6 +430,8 @@ end;
 
 constructor TGlobalData.Create;
 begin
+  LegendFontColor := LEGEND_FONT_COLOR;
+  LegendBackgroundColor := LEGEND_BACKGROUND_COLOR_STICKER;
   BarColor := BAR_DEFAULT_COLOR;
   BarSelectedColor := BAR_SELECTED_DEFAULT_COLOR;
 
@@ -458,11 +475,19 @@ begin
   if val <> FZMax then FZMax := val;
 end;
 
+procedure TLegend3D.Invalidate;
+begin
+  Sign.StickerA.Invalidate;
+  Sign.StickerB.Invalidate;
+end;
+
 constructor TLegend3D.Create(AOwner: TComponent);
 var
   clMat: TColorMaterialSource;
 begin
   inherited;
+  Stg := (AOwner as TBarContainer).Stg;
+
   Sign := TSign.Create(Self);
   Sign.Parent := Self;
   Pole := TCylinder.Create(Self);
@@ -491,6 +516,9 @@ var
   colorMat: TColorMaterialSource;
 begin
   inherited;
+  Stg := (AOwner as TLegend3D).Stg;
+
+
   Wood := TRectangle3D.Create(Self);
   Wood.Parent := Self;
   Wood.HitTest := False;
@@ -536,14 +564,15 @@ var
   Flags: TFillTextFlags;
   H: Single;
 begin
-  Canvas.Clear(LEGEND_BOX_BACKGROUND_COLOR_STICKER);
+  Canvas.Clear(Stg.global.LegendBackgroundColor);
+
   Canvas.Font.Size := LEGEND_BOX_FONT_SIZE*Resolution;
   TopLeft := TPointF.Create(LEGEND_BOX_PAD, LEGEND_BOX_PAD)*Resolution;
   for I := 0 to length(info) - 1 do
     begin
       H := Canvas.TextHeight(info[I]);
       R := TRectF.Create(TopLeft, Dims.Width, H);
-      Canvas.Fill.Color := LEGEND_BOX_FONT_COLOR;
+      Canvas.Fill.Color := Stg.global.LegendFontColor;
       Canvas.FillText(R, info[I], false, 1, Flags, TTextAlign.Leading, TTextAlign.Center);
       TopLeft := TopLeft + TPointF.Create(0, H + LEGEND_BOX_GAP*Resolution);
     end;
@@ -552,6 +581,7 @@ end;
 constructor TStickerInfo.Create(AOwner: TComponent);
 begin
   inherited;
+  Stg := (AOwner as TSign).Stg;
   HitTest := false;
   Resolution := DEFAULT_RESOLUTION;
 end;
@@ -1624,11 +1654,8 @@ begin
         begin
           Legend.bar := bar;
           Legend.Data := Stg.RequestData(bar);
-          Legend.Parent := self;
           Legend.Visible := true;
-
-          Legend.Sign.StickerA.Invalidate;
-          Legend.Sign.StickerB.Invalidate;
+          Legend.Invalidate;
 
           if bar.val >= 0 then
             begin
@@ -1660,6 +1687,8 @@ begin
   Stg.DataYAxis.Count := FRowCount;
   Stg.DataXAxis.Count := FColCount;
   Legend := TLegend3D.Create(self);
+  Legend.Visible := false;
+  Legend.Parent := Self;
 end;
 
 procedure TBar.BarRender(Sender: TObject; Context: TContext3D);
@@ -1946,6 +1975,34 @@ end;
 function T3DBarGraph.GetBarColor: TAlphaColor;
 begin
   Result := globalVars.BarColor;
+end;
+
+function T3DBarGraph.GetLegendFontColor: TAlphaColor;
+begin
+  Result := globalVars.LegendFontColor;
+end;
+
+procedure T3DBarGraph.SetLegendFontColor(val: TAlphaColor);
+begin
+  if val <> globalVars.LegendFontColor then
+    begin
+      globalVars.LegendFontColor := val;
+      Stage.BarContainer.Legend.Invalidate;
+    end;
+end;
+
+function T3DBarGraph.GetLegendBackgroundColor: TAlphaColor;
+begin
+  Result := globalVars.LegendBackgroundColor;
+end;
+
+procedure T3DBarGraph.SetLegendBackgroundColor(val: TAlphaColor);
+begin
+  if val <> globalVars.LegendBackgroundColor then
+    begin
+      globalVars.LegendBackgroundColor := val;
+      Stage.BarContainer.Legend.Invalidate;
+    end;
 end;
 
 function T3DBarGraph.GetBarSelectedColor: TAlphaColor;

@@ -127,8 +127,8 @@ begin
   BarGraph.AddXLabel(2, 'AUTUMN');
   BarGraph.AddXLabel(3, 'WINTER');
 
-
-
+  //BarGraph.LegendBackgroundColor := claWHite;
+  //BarGraph.LegendFontColor := claBlack;
 
   //BarGraph.BarSelectedColor := claBurlywood;
 
