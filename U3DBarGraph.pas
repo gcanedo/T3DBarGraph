@@ -13,38 +13,34 @@ interface
     LEGEND_BOX_PAD = 0.05;
     LEGEND_BOX_GAP = 0.02;
     LEGEND_BOX_FONT_SIZE = 0.09;
-    LEGEND_BOX_FONT_COLOR = claBlack;
     LEGEND_BOX_BACKGROUND_COLOR = claWhite;
-    LEGEND_BOX_BACKGROUND_COLOR_STICKER = claYellow;
     LEGEND_BOX_DEPTH = 0.05;
     LEGEND_BOX_HEIGHT_POLE = 0.50;
     LEGEND_BOX_COLOR_POLE = claBlack;
 
+    LEGEND_BOX_BACKGROUND_COLOR_STICKER = claYellow;
+    LEGEND_BOX_FONT_COLOR = claBlack;
+
+    /// AXIS DIMS //////
+    SIZE_PANEL_TICKS = 1;
+    SIZE_LABEL = 0.3;
     PANEL_PAD = 0.125;
     WIDTH_LINE_TICK = 0.100;
     HEIGHT_LINE_TICK = 0.040;
     GAP_LINE_NUMBER = 0.0625;
 
-
+    ////BAR PROPERTIES ////
+    BAR_SELECTED_DEFAULT_COLOR = claBlue;
+    BAR_DEFAULT_COLOR = claRed;
     BAR_PAD = 0.25;
     BAR_WIDTH = 0.5;
     BAR_DEPTH = 0.5;
-    DEFAULT_ROWCOUNT = 3;
-    DEFAULT_COLCOUNT = 4;
 
-
-    PLANE_DEPTH = 0.001;
-    PLANE_OPACITY = 1;
-
-
-
-    SIZE_PANEL_TICKS = 1;
-    SIZE_LABEL = 0.3;
-
-    BAR_SELECTED_DEFAULT_COLOR = claBlue;
 
     ///// XZ and YZ Planes /////
     XZPLANE_YZPLANE_DEFAULT_COLOR = claWhite;
+    PLANE_DEPTH = 0.001;
+    PLANE_OPACITY = 1;
 
     ///// XY PLANE  ///////
     XYPLANE_BACKGROUNDCOLOR = claAntiquewhite;
@@ -53,6 +49,8 @@ interface
     BARGRAPH_DEFAULT_BACKGROUND_COLOR = claBlack;
     BARGRAPH_DEFAULT_GRID_COLOR = claRed;
     BARGRAPH_FONT_COLOR = claBlack;
+    DEFAULT_ROWCOUNT = 3;
+    DEFAULT_COLCOUNT = 4;
 
 
     //// Z Axis  ///
@@ -79,6 +77,9 @@ interface
       BarGraphGridColor: TAlphaColor;
       BarGraphFontColor: TAlphaColor;
       XZPlaneYZPlaneBackgroundColor: TAlphaColor;
+      BarColor: TAlphaColor;
+      BarSelectedColor: TAlphaColor;
+
       constructor Create;
       function GetZMin: Single;
       procedure SetZMin(val: Single);
@@ -133,7 +134,6 @@ interface
     TBar = class(TCube)
       private
         procedure SetPosition(RowCount, ColCount: Integer);
-        procedure MainRender(Sender: TObject; Context: TContext3D);
       public
         row, col: Integer;
         val: Single;
@@ -141,6 +141,7 @@ interface
         FIsSelected: Boolean;
         Stg: TMainContainer;
         constructor Create(AOwner: TComponent); override;
+        procedure BarRender(Sender: TObject; Context: TContext3D);
         destructor Destroy; override;
         procedure SetIsSelected(val: Boolean);
         function GetIsSelected: Boolean;
@@ -348,7 +349,7 @@ interface
 
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
-        procedure Add(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
+        procedure Add(row, col: Integer; Value: Single; cl: TAlphaColor = 0);
 
         procedure ViewNegativePlane;
         procedure ViewPositivePlane;
@@ -370,16 +371,22 @@ interface
         function GetBarGraphFontColor: TAlphaColor;
         procedure SetBarGraphFontColor(val: TAlphaColor);
 
+        function GetBarColor: TAlphaColor;
+        procedure SetBarColor(val: TAlphaColor);
 
+        function GetBarSelectedColor: TAlphaColor;
+        procedure SetBarSelectedColor(val: TAlphaColor);
 
         procedure AddYLabel(row: Integer; val: String);
         procedure AddXLabel(col: Integer; val: String);
+
+
+      published
 
         property ZLabel: String read GetZLabel write SetZLabel;
         property YLabel: String read GetYLabel write SetYLabel;
         property XLabel: String read GetXLabel write SetXLabel;
 
-      published
 
         property ZMin: Single read GetZMin write SetZMin;
         property ZMax: Single read GetZMax write SetZMax;
@@ -393,6 +400,9 @@ interface
         property FontColor: TAlphaColor read GetBarGraphFontColor write SetBarGraphFontColor;
 
         property XZandYZPlaneColor: TAlphaColor read GetXZandYZPlaneColor write SetXZandYZPlaneColor;
+        property BarColor: TAlphaColor read GetBarColor write SetBarColor;
+        property BarSelectedColor: TAlphaColor read GetBarSelectedColor write SetBarSelectedColor;
+
     end;
 
 implementation
@@ -405,6 +415,9 @@ end;
 
 constructor TGlobalData.Create;
 begin
+  BarColor := BAR_DEFAULT_COLOR;
+  BarSelectedColor := BAR_SELECTED_DEFAULT_COLOR;
+
   XYPlaneBackgroundColor := XYPLANE_BACKGROUNDCOLOR;
   XZPlaneYZPlaneBackgroundColor := XZPLANE_YZPLANE_DEFAULT_COLOR;
 
@@ -483,6 +496,8 @@ begin
   Wood.HitTest := False;
   colorMat := TColorMaterialSource.Create(self);
   colorMat.Color := LEGEND_BOX_BACKGROUND_COLOR;
+
+
   Wood.MaterialBackSource := colorMat;
   Wood.MaterialShaftSource := colorMat;
   Wood.MaterialSource := colorMat;
@@ -624,7 +639,7 @@ begin
   Base.Width := TopSticker.Width;
   Base.Parent := Self;
   ColorPlane := TColorMaterialSource.Create(Self);
-  ColorPlane.Color := Stg.global.XYPlaneBackgroundColor;
+  ColorPlane.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY);
 
 
 
@@ -633,6 +648,8 @@ begin
   Base.MaterialSource := ColorPlane;
   Base.HitTest := false;
   Base.Opacity := PLANE_OPACITY;
+
+
   tag := 1;
   BottomSticker := TGroupSticker.Create(Self);
   BottomSticker.RotationAngle.X := 90;
@@ -671,13 +688,13 @@ begin
   Base.Width := TopSticker.Width;
   Base.Parent := Self;
   ColorPlane := TColorMaterialSource.Create(Self);
-  ColorPlane.Color := Stg.global.XYPlaneBackgroundColor;
+  ColorPlane.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, 1);
 
   Base.MaterialBackSource := ColorPlane;
   Base.MaterialShaftSource := ColorPlane;
   Base.MaterialSource := ColorPlane;
   Base.HitTest := false;
-  Base.Opacity := PLANE_OPACITY;
+  Base.Opacity := 0;//PLANE_OPACITY;
 
   tag := -1;
   BottomSticker := TGroupSticker.Create(Self);
@@ -703,7 +720,7 @@ end;
 
 procedure TGroupSticker.Invalidate;
 begin
-  Lb.Fill := TBrush.Create(TBrushKind.Solid, Stg.global.XYPlaneBackgroundColor);
+  Lb.Fill := TBrush.Create(TBrushKind.Solid, MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY));
   Lb.Color := Stg.global.BarGraphFontColor;
 end;
 
@@ -726,7 +743,7 @@ begin
   Lb.Resolution := DEFAULT_RESOLUTION;
   Lb.RotationAngle.Z := -90;
   Lb.Color := Stg.global.BarGraphFontColor;
-  Lb.Fill := TBrush.Create(TBrushKind.Solid, Stg.global.XYPlaneBackgroundColor);
+  Lb.Fill := TBrush.Create(TBrushKind.Solid, MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY));
 
   Lb.Font.Size := Lb.Resolution*PANEL_PAD;
   Lb.Position.X := Width/2 - Lb.Height/2;
@@ -767,9 +784,7 @@ var
   b: TInfoCell;
   Flags: TFillTextFlags;
 begin
-  Canvas.Clear(Stg.global.XYPlaneBackgroundColor);
-
-
+  Canvas.Clear(MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY));
   Canvas.Font.Size := (0.1*Resolution);
 
   PxHeightBlock := ARect.Height/info.blockCount;
@@ -808,7 +823,7 @@ var
   Flags: TFillTextFlags;
 begin
 
-  Canvas.Clear(Stg.global.XYPlaneBackgroundColor);
+  Canvas.Clear(MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY));
   Canvas.Font.Size := (0.1*Resolution);
 
   PxHeightBlock := ARect.Height/info.blockCount;
@@ -841,7 +856,7 @@ constructor TSticker.Create(AOwner: TComponent);
 begin
   inherited;
   Stg := (AOwner as TGroupSticker).Stg;
-  DeleteChildren;
+  (Children[0] as TText).HitTest := false;
   tag := AOwner.Tag;
   HitTest := false;
   Resolution := DEFAULT_RESOLUTION;
@@ -1144,7 +1159,6 @@ begin
   ];
 end;
 
-
 function TMainContainer.GetScale: Single;
 begin
   Result := (global.ZMax - global.ZMin)/Height;
@@ -1425,7 +1439,7 @@ end;
 
 procedure  TMainContainer.PanelPaint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
 begin
-  Canvas.Clear(MakeColor(global.XZPlaneYZPlaneBackgroundColor, PLANE_OPACITY));
+  Canvas.Clear(global.XZPlaneYZPlaneBackgroundColor);
 end;
 
 procedure TMainContainer.XZPlaneRender(Sender: TObject; Context: TContext3D);
@@ -1631,31 +1645,35 @@ begin
               Legend.Sign.RotationAngle.Z := 180;
             end;
 
+
           RotateLegend;
         end;
     end;
 end;
 
 constructor TBarContainer.Create(AOwner: TComponent);
-
 begin
   inherited;
   Stg := AOwner as TMainContainer;
   FRowCount := DEFAULT_ROWCOUNT;
   FColCount := DEFAULT_COLCOUNT;
-
   Stg.DataYAxis.Count := FRowCount;
   Stg.DataXAxis.Count := FColCount;
-
   Legend := TLegend3D.Create(self);
+end;
+
+procedure TBar.BarRender(Sender: TObject; Context: TContext3D);
+begin
+  if FIsSelected then
+    Context.DrawCube(TPoint3D.Zero, TPoint3D.Create(1, 1, 1), 1, claBlack);
 end;
 
 constructor TBar.Create(AOwner: TComponent);
 begin
   inherited;
   Stg := (AOwner as TBarContainer).Stg;
-
   FIsSelected := false;
+  OnRender := BarRender;
 end;
 
 procedure TBar.SetColor(val: TAlphaColor);
@@ -1676,7 +1694,7 @@ begin
     begin
       FIsSelected := val;
       if FIsSelected then
-        color := BAR_SELECTED_DEFAULT_COLOR
+        color := Stg.global.BarSelectedColor
       else
         color := fcolor;
       repaint;
@@ -1691,11 +1709,6 @@ end;
 destructor TBar.Destroy;
 begin
   inherited;
-end;
-
-procedure TBar.MainRender(Sender: TObject; Context: TContext3D);
-begin
- // Context.DrawCube(TPoint3D.Zero, TPoint3D.Create(Width, Height, Depth), 1, claBlack);
 end;
 
 procedure TBar.SetPosition(RowCount, ColCount: Integer);
@@ -1930,6 +1943,35 @@ begin
   Result := globalVars.AutoScale;
 end;
 
+function T3DBarGraph.GetBarColor: TAlphaColor;
+begin
+  Result := globalVars.BarColor;
+end;
+
+function T3DBarGraph.GetBarSelectedColor: TAlphaColor;
+begin
+  Result := BarSelectedColor;
+end;
+
+procedure T3DBarGraph.SetBarSelectedColor(val: TAlphaColor);
+begin
+  if val <> globalVars.BarSelectedColor then
+    begin
+      globalVars.BarSelectedColor := val;
+      Stage.Invalidate;
+    end;
+end;
+
+
+procedure T3DBarGraph.SetBarColor(val: TAlphaColor);
+begin
+  if val <> globalVars.BarColor then
+    begin
+      globalVars.BarColor := val;
+      Stage.Invalidate;
+    end;
+end;
+
 function T3DBarGraph.GetBackgroundColor: TAlphaColor;
 begin
   Result := color;
@@ -2072,6 +2114,10 @@ begin
   RightLight.Position.Y := 0;
   RightLight.Position.Z := 8;
 
+  //MyCamera.AddObject(LeftLight);
+  //MyCamera.AddObject(RightLight);
+
+
   InitMouseEvents;
 end;
 
@@ -2146,9 +2192,12 @@ begin
     end;
 end;
 
-procedure T3DBarGraph.Add(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
+procedure T3DBarGraph.Add(row, col: Integer; Value: Single; cl: TAlphaColor = 0);
+var
+  temp: TAlphaColor;
 begin
-  Stage.BarContainer.Add(row, col, Value, cl);
+  if cl = 0 then temp := globalVars.BarColor else temp := cl;
+  Stage.BarContainer.Add(row, col, Value, temp);
   Stage.DataYAxis.Count := row + 1;
   Stage.DataXAxis.Count := col + 1;
   Stage.Invalidate;

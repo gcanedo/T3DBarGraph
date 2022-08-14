@@ -61,10 +61,10 @@ begin
   BarGraph.NumTicks := 8;
   BarGraph.AutoScale := true;
   BarGraph.BackgroundColor := claBlack;
-  BarGraph.XYPlaneColor := claYellow;
-  BarGraph.GridColor := claBlack;
-  BarGraph.FontColor := claBlack;
-  BarGraph.XZandYZPlaneColor := claYellow;
+  BarGraph.XYPlaneColor := claDarkblue;
+  BarGraph.GridColor := claWhite;
+  BarGraph.FontColor := claYellow;
+  BarGraph.XZandYZPlaneColor := claDarkBlue;
 
 
   BarGraph.Width := 800;
@@ -75,6 +75,30 @@ begin
 
   BarGraph.Position.X := 0;
   BarGraph.Position.Y := 0;
+
+  BarGraph.BarColor := claGreen;
+
+
+
+  {
+  BarGraph.Add(0, 0, -15);
+  BarGraph.Add(1, 0, 14);
+  BarGraph.Add(2, 0, 14);
+
+  BarGraph.Add(0, 1, 25);
+  BarGraph.Add(1, 1, 25);
+  BarGraph.Add(2, 1, 25);
+
+  BarGraph.Add(0, 2, 10);
+  BarGraph.Add(1, 2, 10);
+  BarGraph.Add(2, 2, 10);
+
+  BarGraph.Add(0, 3, 5);
+  BarGraph.Add(1, 3, 5);
+  BarGraph.Add(2, 3, -5);
+  }
+
+
 
   BarGraph.Add(0, 0, -15, claGreen);
   BarGraph.Add(1, 0, 14, claPurple);
@@ -93,6 +117,7 @@ begin
   BarGraph.Add(2, 3, -5, claRed);
 
 
+
   BarGraph.AddYLabel(0, '1987-1996');
   BarGraph.AddYLabel(1, '1937-1946');
   BarGraph.AddYLabel(2, '1887-1896');
@@ -101,6 +126,11 @@ begin
   BarGraph.AddXLabel(1, 'SUMMER');
   BarGraph.AddXLabel(2, 'AUTUMN');
   BarGraph.AddXLabel(3, 'WINTER');
+
+
+
+
+  //BarGraph.BarSelectedColor := claBurlywood;
 
 
 end;
