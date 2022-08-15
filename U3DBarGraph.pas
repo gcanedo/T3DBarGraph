@@ -5,7 +5,7 @@ interface
     FMX.Viewport3D, System.Classes, FMX.Objects3D, Math, System.SysUtils,
     FMX.MaterialSources, System.UIConsts, FMX.Types3D, System.Math.Vectors,
     System.UITypes, FMX.Controls3D, System.Types, FMX.Ani, FMX.Layers3D,
-    FMX.Graphics, FMX.Types, FMX.Objects, FMX.Dialogs;
+    FMX.Graphics, FMX.Types, FMX.Objects, FMX.Dialogs, FMX.StdCtrls;
 
   const
 
@@ -59,13 +59,26 @@ interface
 
     //// GENERAL SETTINGS////////
     ROTATION_STEP = 0.3;
+    TRANSLATION_STEP = 0.02;
+
     DEFAULT_RESOLUTION = 200;
-    ZOOM_STEP = 2;
-    CAMERA_MAX_Z = -2;
+    ZOOM_STEP = 1;
+    CAMERA_MAX_Z = 5;
     CAMERA_MIN_Z = -102;
     DURATION_CAMERA_CHANGE_VIEW_PLANE = 0.5;
-
+    STAGE_INITIAL_ROT_ANGLE_Y = 45;
+    CAMERA_INITIAL_ROT_ANGLE_X = -10;
+    CAMERA_INITIAL_POSITION_Z = -4;
   type
+
+    TMyCamera = class(TDummy)
+      public
+        MinZ, MaxZ: Single;
+        cam: TCamera;
+        dir: Integer;
+        constructor Create(AOwner: TComponent); override;
+        procedure Init(AMinZ, AMaxZ, IniZ: Single; t: TControl3D);
+    end;
 
     TGlobalData = class(TObject)
       NumTicks: Integer;
@@ -130,6 +143,7 @@ interface
       StickerA, StickerB: TStickerInfo;
       Wood: TRectangle3D;
       Stg: TMainContainer;
+      Pack: TMyCamera;
       constructor Create(AOwner: TComponent); override;
     end;
 
@@ -158,6 +172,7 @@ interface
       Pole: TCylinder;
       bar: TBar;
       Stg: TMainContainer;
+
       procedure SetData(val: TInfoStr);
       procedure Invalidate;
       constructor Create(AOwner: TComponent); override;
@@ -179,6 +194,7 @@ interface
         Stg: TMainContainer;
         procedure UnSelected(ExceptBar: TBar = Nil);
         procedure BarClick(Sender: TObject);
+        procedure LegendClick(Sender: TObject);
         procedure BarMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single; RayPos, RayDir: TVector3D);
         procedure BarMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single; RayPos, RayDir: TVector3D);
         procedure BarMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single; RayPos, RayDir: TVector3D);
@@ -285,6 +301,7 @@ interface
         AxisXPanel: TAxisXPanel;
 
         Corner : TRectangle3D;
+        Guia: TSphere;
         Boss: TObject;
 
         constructor Create(AOwner: TComponent); override;
@@ -332,6 +349,7 @@ interface
         procedure MouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
         procedure ViewportClick(Sender: TObject);
         procedure InitMouseEvents;
+        procedure SetPositionLights;
 
         procedure SetZLabel(val: String);
         function GetZLabel: String;
@@ -346,13 +364,12 @@ interface
       public
         globalVars: TGlobalData;
         Stage: TMainContainer;
-        FrontCamera: TCamera;
         status: String;
         Pos3D: TPoint3D;
         PosMouse: TPointF;
         LeftLight, RightLight: TLight;
-        MyCamera: TDummy;
-
+        MainCamera: TMyCamera;
+        Lb: TLabel;
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
         procedure Add(row, col: Integer; Value: Single; cl: TAlphaColor = 0);
@@ -393,6 +410,8 @@ interface
         procedure AddYLabel(row: Integer; val: String);
         procedure AddXLabel(col: Integer; val: String);
 
+        procedure SetInitialValues;
+        procedure Reset;
 
       published
 
@@ -537,7 +556,19 @@ begin
 
   StickerB := TStickerInfo.Create(Self);
   StickerB.Parent := Self;
-  StickerB.Position.Z := -StickerA.Position.Z
+  StickerB.Position.Z := -StickerA.Position.Z;
+
+  StickerA.HitTest := true;
+  StickerA.AutoCapture := true;
+
+  StickerB.HitTest := true;
+  StickerB.AutoCapture := true;
+
+  Pack := TMyCamera.Create(self);
+  Pack.Init(7.8, 20, 9.8, self);
+  Pack.dir := -1;
+  Pack.Parent := Self;
+
 end;
 
 procedure TStickerInfo.SetInfo(Val: TInfoStr);
@@ -582,7 +613,9 @@ constructor TStickerInfo.Create(AOwner: TComponent);
 begin
   inherited;
   Stg := (AOwner as TSign).Stg;
-  HitTest := false;
+  DeleteChildren;
+  HitTest := true;
+  AutoCapture := true;
   Resolution := DEFAULT_RESOLUTION;
 end;
 
@@ -1212,6 +1245,14 @@ begin
   inherited;
   Boss := AOwner;
 
+  Guia := TSphere.Create(Self);
+  Guia.Parent := Self;
+  Guia.width := 0.001;
+  Guia.Height := Guia.width;
+  Guia.Depth := Guia.Height;
+  Guia.HitTest := false;
+  Guia.Opacity := 0;
+
   DataYAxis := TInfoAxis.Create;
   DataXAxis := TInfoAxis.Create;
   HitTest := false;
@@ -1289,6 +1330,9 @@ begin
   Depth := BarContainer.RowCount*(BAR_DEPTH + 2*BAR_PAD);
   HalfPlaneHeight := Max(Width, Depth);
   Height := HalfPlaneHeight;
+
+  (Boss as T3DBarGraph).SetPositionLights;
+
 
   XZPlane.Width := Width;
   XZPlane.Depth := PLANE_DEPTH;
@@ -1588,10 +1632,19 @@ procedure TBarContainer.UnSelected(ExceptBar: TBar = Nil);
 var
   I: Integer;
   b: TBar;
+  gb: T3DBarGraph;
 begin
+  gb := Stg.Boss as T3DBarGraph;
+  if gb.Camera <> gb.MainCamera.cam then
+    begin
+      gb.Camera := gb.MainCamera.cam;
+      Exit;
+    end;
+
   Legend.Visible := false;
   Legend.RotationAngle.y := 135;
   Legend.RotationAngle.X := 0;
+
   for I := 0 to ChildrenCount - 1 do
     if Children[I] is TBar then
       begin
@@ -1638,6 +1691,14 @@ begin
   gb.MouseUp(Sender, Button, Shift, X, Y);
 end;
 
+procedure TBarContainer.LegendClick(Sender: TObject);
+var
+  gb: T3DBarGraph;
+begin
+  gb := Stg.Boss as T3DBarGraph;
+  gb.Camera := Legend.Sign.Pack.cam;
+end;
+
 procedure TBarContainer.BarClick(Sender: TObject);
 var
   bar: TBar;
@@ -1656,6 +1717,9 @@ begin
           Legend.Data := Stg.RequestData(bar);
           Legend.Visible := true;
           Legend.Invalidate;
+
+         //
+
 
           if bar.val >= 0 then
             begin
@@ -1689,6 +1753,13 @@ begin
   Legend := TLegend3D.Create(self);
   Legend.Visible := false;
   Legend.Parent := Self;
+
+  Legend.Sign.HitTest := true;
+  Legend.Sign.AutoCapture := true;
+  //Legend.Sign.OnClick := LegendClick;
+  Legend.Sign.StickerB.OnClick := LegendClick;
+  Legend.Sign.StickerA.OnClick := LegendClick;
+
 end;
 
 procedure TBar.BarRender(Sender: TObject; Context: TContext3D);
@@ -1860,14 +1931,14 @@ procedure T3DBarGraph.ViewNegativePlane;
 begin
   Stage.PanelRightTicks.ShowNegativeSpace;
   Stage.PanelLeftTicks.ShowNegativeSpace;
-
+  {
   TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.X', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
   TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.Y', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
   TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.Z', 180, DURATION_CAMERA_CHANGE_VIEW_PLANE);
 
   TAnimator.AnimateFloat(FrontCamera, 'Position.X', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
   TAnimator.AnimateFloat(FrontCamera, 'Position.Y', Stage.Height/2, DURATION_CAMERA_CHANGE_VIEW_PLANE);
-
+  }
   SetStateRotationAngle(TPoint3D.Create(0, 45, 0));
 end;
 
@@ -1875,11 +1946,13 @@ procedure T3DBarGraph.ViewPositivePlane;
 begin
   Stage.PanelRightTicks.ShowPositiveSpace;
   Stage.PanelLeftTicks.ShowPositiveSpace;
+  {
   TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.X', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
   TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.Y', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
   TAnimator.AnimateFloat(FrontCamera, 'RotationAngle.Z', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
   TAnimator.AnimateFloat(FrontCamera, 'Position.X', 0, DURATION_CAMERA_CHANGE_VIEW_PLANE);
   TAnimator.AnimateFloat(FrontCamera, 'Position.Y', -Stage.Height/2, DURATION_CAMERA_CHANGE_VIEW_PLANE);
+  }
   SetStateRotationAngle(TPoint3D.Create(0, 45, 0));
 end;
 
@@ -2132,6 +2205,27 @@ begin
     end;
 end;
 
+procedure T3DBarGraph.Reset;
+begin
+  SetInitialValues;
+end;
+
+procedure T3DBarGraph.SetInitialValues;
+begin
+  Camera := MainCamera.cam;
+  MainCamera.RotationAngle.X := CAMERA_INITIAL_ROT_ANGLE_X;
+  MainCamera.Init(CAMERA_MIN_Z, CAMERA_MAX_Z, CAMERA_INITIAL_POSITION_Z, Stage.Guia);
+
+  Stage.RotationAngle.Y := STAGE_INITIAL_ROT_ANGLE_Y;
+  Stage.Position.X := 0;
+  Stage.Position.Y := 0;
+  Stage.BarContainer.RotateLegend;
+  Status := 'static';
+
+  Stage.Guia.Position.X := 0;
+  Stage.Guia.Position.Y := 0;
+end;
+
 constructor T3DBarGraph.Create(AOwner: TComponent);
 begin
   inherited;
@@ -2144,38 +2238,41 @@ begin
   Stage := TMainContainer.Create(Self);
   Stage.Parent := Self;
 
-  MyCamera := TDummy.Create(Self);
-  MyCamera.Parent := self;
-  FrontCamera := TCamera.Create(self);
-  FrontCamera.Target := Stage;
-  FrontCamera.Position.X := 0;
-  FrontCamera.Position.Z := -10;
-  FrontCamera.Position.Y := -Stage.Height/2;
-  MyCamera.AddObject(FrontCamera);
-  Stage.RotationAngle.Y := 45;
+  MainCamera := TMyCamera.Create(Self);
+  MainCamera.Parent := self;
+
+  SetInitialValues;
   dir := 1;
-  Camera := FrontCamera;
 
 
   LeftLight := TLight.Create(self);
   LeftLight.LightType := TLightType.Point;
   LeftLight.Parent := Self;
-  LeftLight.Position.X := -8;
-  LeftLight.Position.Y := 0;
-  LeftLight.Position.Z := 0;
 
   RightLight := TLight.Create(self);
   RightLight.LightType := TLightType.Point;
   RightLight.Parent := Self;
-  RightLight.Position.X := 8;
-  RightLight.Position.Y := 0;
-  RightLight.Position.Z := 8;
 
-  //MyCamera.AddObject(LeftLight);
-  //MyCamera.AddObject(RightLight);
-
+  SetPositionLights;
 
   InitMouseEvents;
+end;
+
+procedure T3DBarGraph.SetPositionLights;
+var
+  F: Single;
+begin
+  if Assigned(RightLight) then
+    begin
+      F := 10;
+      RightLight.Position.X := F*Stage.Width;
+      RightLight.Position.Y := 0;
+      RightLight.Position.Z := F*Stage.Depth;
+
+      LeftLight.Position.X := -RightLight.Position.X;
+      LeftLight.Position.Y := 0;
+      LeftLight.Position.Z := 0;
+    end;
 end;
 
 procedure T3DBarGraph.InitMouseEvents;
@@ -2187,28 +2284,49 @@ begin
   OnClick := ViewportClick;
 end;
 
+constructor TMyCamera.Create(AOwner: TComponent);
+begin
+  inherited;
+  dir := 1;
+  cam := TCamera.Create(Self);
+  AddObject(cam);
+end;
+
+procedure TMyCamera.Init(AMinZ, AMaxZ, IniZ: Single; t: TControl3D);
+begin
+  MinZ := AMinZ;
+  MaxZ := AMaxZ;
+  Position.Z := IniZ;
+  cam.Target := t;
+end;
+
 procedure T3DBarGraph.DoZoom(aIn: Boolean);
 var
   newZ: Single;
+  mc: TMyCamera;
 begin
+  mc := Camera.Parent as TMyCamera;
   if AIn then
-    newZ := FrontCamera.Position.Z + ZOOM_STEP
+    newZ := mc.Position.Z + mc.dir*ZOOM_STEP
   else
-    newZ := FrontCamera.Position.Z - ZOOM_STEP;
+    newZ := mc.Position.Z - mc.dir*ZOOM_STEP;
 
-  if (newZ < CAMERA_MAX_Z) and (newZ > CAMERA_MIN_Z) then
-     FrontCamera.Position.Z := newZ;
+  if (newZ < mc.MaxZ) and (newZ > mc.MinZ) then
+     mc.Position.Z := newZ;
+
+  Lb.Text := Format('z: %f', [mc.Position.Z]);
+
 end;
 
 procedure T3DBarGraph.MouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean);
 begin
-  //FrontCamera.Position.Z := FrontCamera.Position.Z + 0.01*WheelDelta;
   DoZoom(WheelDelta > 0);
 end;
 
 procedure T3DBarGraph.ViewportClick(Sender: TObject);
 begin
-  if (Tag <> 1) or (Sender is TRectangle3D) then Stage.BarContainer.UnSelected;
+  if Tag <> 1 then
+    Stage.BarContainer.UnSelected;
 end;
 
 procedure T3DBarGraph.MouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
@@ -2217,35 +2335,49 @@ var
 begin
   Tag := 0;
   FDown := PointF(X, Y);
-  if FrontCamera.Position.Y <= 0 then dir := -1 else dir := 1;
-  if (Button = TMouseButton.mbLeft) and (ssLeft in Shift) and (Status = 'static') then
+  if ((ssLeft in Shift) or (ssCtrl in Shift)) and (Status = 'static') then
     begin
       Status := 'MouseMove';
-      //if FrontCamera.Position.Y <= 0 then dir := -1 else dir := 1;
     end;
 end;
 
 procedure T3DBarGraph.MouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
+var
+  Delta: TPointF;
+  T: Single;
+  mc: TMyCamera;
 begin
+  Delta := PointF(X, Y) - FDown;
+  if (ssCtrl in Shift) and (Status = 'MouseMove') then
+    begin
+      //mc := Camera.Parent as TMyCamera;
+      //T := Stage.Width /TRANSLATION_STEP;
+      Stage.Guia.Position.X := Stage.Guia.Position.X - Delta.X*TRANSLATION_STEP;
+      Stage.Guia.Position.Y := Stage.Guia.Position.Y - Delta.Y*TRANSLATION_STEP;
 
+
+      //Stage.Position.X := Stage.Position.X + Delta.X*TRANSLATION_STEP;
+      //Stage.Position.Y := Stage.Position.Y + Delta.Y*TRANSLATION_STEP;
+    end
+  else
   if (ssLeft in Shift) and (Status = 'MouseMove') then
     begin
-      MyCamera.RotationAngle.X := MyCamera.RotationAngle.X + dir*((Y - FDown.Y)*ROTATION_STEP);
-      Stage.RotationAngle.Y := Stage.RotationAngle.Y + dir*((X - FDown.X)*ROTATION_STEP);
-      //FDown := PointF(X, Y);
-      //Tag := 1;
+      mc := Camera.Parent as TMyCamera;
+      mc.RotationAngle.X := mc.RotationAngle.X - Delta.Y*ROTATION_STEP;
+      Stage.RotationAngle.Y := Stage.RotationAngle.Y - Delta.X*ROTATION_STEP;
       Stage.BarContainer.RotateLegend;
     end;
-
   FDown := PointF(X, Y);
   Tag := 1;
+
+  Lb.Text := Format('W: %f, H:%f', [stage.ScreenBounds.Width, stage.ScreenBounds.Height]);
 end;
 
 procedure T3DBarGraph.MouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
 begin
   if(Status = 'MouseMove') then
     begin
-       Status := 'static';
+      Status := 'static';
     end;
 end;
 

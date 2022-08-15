@@ -19,4 +19,13 @@ object MainForm: TMainForm
     Text = 'View Negative Plane'
     OnClick = Button2Click
   end
+  object Label1: TLabel
+    Position.X = 896.000000000000000000
+    Position.Y = 632.000000000000000000
+    Size.Width = 217.000000000000000000
+    Size.Height = 49.000000000000000000
+    Size.PlatformDefault = False
+    Text = 'Label1'
+    TabOrder = 4
+  end
 end

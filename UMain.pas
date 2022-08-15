@@ -16,6 +16,7 @@ type
 
   TMainForm = class(TForm)
     Button2: TButton;
+    Label1: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     
@@ -37,22 +38,13 @@ implementation
 
 procedure TMainForm.Button2Click(Sender: TObject);
 begin
-
-   if Button2.Text = 'View Negative Plane' then
-     begin
-       Button2.Text := 'View Positive Plane';
-       BarGraph.ViewNegativePlane;
-     end
-   else
-     begin
-       Button2.Text := 'View Negative Plane';
-       BarGraph.ViewPositivePlane;
-     end;
+  BarGraph.Reset;
 end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
   BarGraph := T3DBarGraph.Create(Self);
+  BarGraph.Lb := Label1;
   BarGraph.Parent := Self;
   BarGraph.Align := TAlignLayout.Client;
 
@@ -116,7 +108,7 @@ begin
   BarGraph.Add(1, 3, 5, claPurple);
   BarGraph.Add(2, 3, -5, claRed);
 
-
+  //BarGraph.Add(10, 5, 10, claRed);
 
   BarGraph.AddYLabel(0, '1987-1996');
   BarGraph.AddYLabel(1, '1937-1946');
@@ -129,9 +121,7 @@ begin
 
   //BarGraph.LegendBackgroundColor := claWHite;
   //BarGraph.LegendFontColor := claBlack;
-
   //BarGraph.BarSelectedColor := claBurlywood;
-
 
 end;
 
