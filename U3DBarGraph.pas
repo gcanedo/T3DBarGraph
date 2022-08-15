@@ -69,6 +69,10 @@ interface
     STAGE_INITIAL_ROT_ANGLE_Y = 45;
     CAMERA_INITIAL_ROT_ANGLE_X = -10;
     CAMERA_INITIAL_POSITION_Z = -4;
+
+    SHOW_GUIDES = 0;
+    SIZE_GUIDES = 0.001;
+
   type
 
     TMyCamera = class(TDummy)
@@ -76,6 +80,7 @@ interface
         MinZ, MaxZ: Single;
         cam: TCamera;
         dir: Integer;
+        guide: TSphere;
         constructor Create(AOwner: TComponent); override;
         procedure Init(AMinZ, AMaxZ, IniZ: Single; t: TControl3D);
     end;
@@ -301,7 +306,7 @@ interface
         AxisXPanel: TAxisXPanel;
 
         Corner : TRectangle3D;
-        Guia: TSphere;
+        //Guia: TSphere;
         Boss: TObject;
 
         constructor Create(AOwner: TComponent); override;
@@ -370,6 +375,8 @@ interface
         LeftLight, RightLight: TLight;
         MainCamera: TMyCamera;
         Lb: TLabel;
+        Guia: TSphere;
+
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
         procedure Add(row, col: Integer; Value: Single; cl: TAlphaColor = 0);
@@ -564,11 +571,11 @@ begin
   StickerB.HitTest := true;
   StickerB.AutoCapture := true;
 
+
   Pack := TMyCamera.Create(self);
   Pack.Init(7.8, 20, 9.8, self);
   Pack.dir := -1;
   Pack.Parent := Self;
-
 end;
 
 procedure TStickerInfo.SetInfo(Val: TInfoStr);
@@ -1244,7 +1251,7 @@ constructor TMainContainer.Create(AOwner: TComponent);
 begin
   inherited;
   Boss := AOwner;
-
+  {
   Guia := TSphere.Create(Self);
   Guia.Parent := Self;
   Guia.width := 0.001;
@@ -1252,6 +1259,7 @@ begin
   Guia.Depth := Guia.Height;
   Guia.HitTest := false;
   Guia.Opacity := 0;
+  }
 
   DataYAxis := TInfoAxis.Create;
   DataXAxis := TInfoAxis.Create;
@@ -1718,7 +1726,7 @@ begin
           Legend.Visible := true;
           Legend.Invalidate;
 
-         //
+          //gb.Camera := Legend.Sign.Pack.cam;
 
 
           if bar.val >= 0 then
@@ -1872,6 +1880,9 @@ begin
   bar.color := cl;
   bar.HitTest := true;
   bar.AutoCapture := true;
+  bar.SubdivisionsHeight := 18;
+  bar.SubdivisionsDepth := 5;
+  bar.SubdivisionsWidth := 5;
 
   bar.OnClick := BarClick;
   bar.OnMouseDown := BarMouseDown;
@@ -2214,7 +2225,7 @@ procedure T3DBarGraph.SetInitialValues;
 begin
   Camera := MainCamera.cam;
   MainCamera.RotationAngle.X := CAMERA_INITIAL_ROT_ANGLE_X;
-  MainCamera.Init(CAMERA_MIN_Z, CAMERA_MAX_Z, CAMERA_INITIAL_POSITION_Z, Stage.Guia);
+  MainCamera.Init(CAMERA_MIN_Z, CAMERA_MAX_Z, CAMERA_INITIAL_POSITION_Z, Guia);
 
   Stage.RotationAngle.Y := STAGE_INITIAL_ROT_ANGLE_Y;
   Stage.Position.X := 0;
@@ -2222,8 +2233,11 @@ begin
   Stage.BarContainer.RotateLegend;
   Status := 'static';
 
-  Stage.Guia.Position.X := 0;
-  Stage.Guia.Position.Y := 0;
+  Guia.Position.X := 0;
+  Guia.Position.Y := 0;
+  MainCamera.Position.X := 0;
+  MainCamera.Position.Y := 0;
+
 end;
 
 constructor T3DBarGraph.Create(AOwner: TComponent);
@@ -2237,6 +2251,14 @@ begin
 
   Stage := TMainContainer.Create(Self);
   Stage.Parent := Self;
+
+  Guia := TSphere.Create(Self);
+  Guia.Parent := Self;
+  Guia.width := SIZE_GUIDES;
+  Guia.Height := Guia.width;
+  Guia.Depth := Guia.Height;
+  Guia.HitTest := false;
+  Guia.Opacity := SHOW_GUIDES;
 
   MainCamera := TMyCamera.Create(Self);
   MainCamera.Parent := self;
@@ -2285,11 +2307,26 @@ begin
 end;
 
 constructor TMyCamera.Create(AOwner: TComponent);
+var
+  cl: TColorMaterialSource;
 begin
   inherited;
   dir := 1;
   cam := TCamera.Create(Self);
   AddObject(cam);
+
+  guide := TSphere.Create(Self);
+  guide.width := SIZE_GUIDES;
+  guide.Height := guide.width;
+  guide.Depth := guide.Height;
+  guide.HitTest := false;
+  guide.Opacity := SHOW_GUIDES;
+
+  cl := TColorMaterialSource.Create(self);
+  cl.Color := claGreen;
+  guide.MaterialSource := cl;
+
+  AddObject(guide);
 end;
 
 procedure TMyCamera.Init(AMinZ, AMaxZ, IniZ: Single; t: TControl3D);
@@ -2350,14 +2387,14 @@ begin
   Delta := PointF(X, Y) - FDown;
   if (ssCtrl in Shift) and (Status = 'MouseMove') then
     begin
-      //mc := Camera.Parent as TMyCamera;
-      //T := Stage.Width /TRANSLATION_STEP;
-      Stage.Guia.Position.X := Stage.Guia.Position.X - Delta.X*TRANSLATION_STEP;
-      Stage.Guia.Position.Y := Stage.Guia.Position.Y - Delta.Y*TRANSLATION_STEP;
-
-
-      //Stage.Position.X := Stage.Position.X + Delta.X*TRANSLATION_STEP;
-      //Stage.Position.Y := Stage.Position.Y + Delta.Y*TRANSLATION_STEP;
+      mc := Camera.Parent as TMyCamera;
+      if Camera = MainCamera.cam then
+        begin
+          guia.Position.X := guia.Position.X - Delta.X*TRANSLATION_STEP;
+          guia.Position.Y := guia.Position.Y - Delta.Y*TRANSLATION_STEP;
+          mc.Position.X := mc.Position.X - Delta.X*TRANSLATION_STEP;
+          mc.Position.Y := mc.Position.Y - Delta.Y*TRANSLATION_STEP;
+        end;
     end
   else
   if (ssLeft in Shift) and (Status = 'MouseMove') then

@@ -8,7 +8,7 @@ uses
   System.Math.Vectors, FMX.Controls3D, FMX.Objects3D, FMX.Types3D,
   FMX.MaterialSources, Math, FMX.Memo.Types, FMX.Controls.Presentation,
   FMX.ScrollBox, FMX.Memo, FMX.StdCtrls, System.UIConsts, U3DBarGraph,
-  FMX.Layers3D, FMX.Objects;
+  FMX.Layers3D, FMX.Objects, FMX.Menus, FMX.ExtCtrls;
 
 
 type
@@ -17,6 +17,8 @@ type
   TMainForm = class(TForm)
     Button2: TButton;
     Label1: TLabel;
+    PopupMenu1: TPopupMenu;
+    MenuItem1: TMenuItem;
     procedure FormCreate(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     
@@ -43,10 +45,12 @@ end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
+
+
   BarGraph := T3DBarGraph.Create(Self);
   BarGraph.Lb := Label1;
   BarGraph.Parent := Self;
-  BarGraph.Align := TAlignLayout.Client;
+  //BarGraph.Align := TAlignLayout.Client;
 
   BarGraph.ZMin := -30;
   BarGraph.ZMax := 30;
@@ -108,8 +112,6 @@ begin
   BarGraph.Add(1, 3, 5, claPurple);
   BarGraph.Add(2, 3, -5, claRed);
 
-  //BarGraph.Add(10, 5, 10, claRed);
-
   BarGraph.AddYLabel(0, '1987-1996');
   BarGraph.AddYLabel(1, '1937-1946');
   BarGraph.AddYLabel(2, '1887-1896');
@@ -118,10 +120,6 @@ begin
   BarGraph.AddXLabel(1, 'SUMMER');
   BarGraph.AddXLabel(2, 'AUTUMN');
   BarGraph.AddXLabel(3, 'WINTER');
-
-  //BarGraph.LegendBackgroundColor := claWHite;
-  //BarGraph.LegendFontColor := claBlack;
-  //BarGraph.BarSelectedColor := claBurlywood;
 
 end;
 

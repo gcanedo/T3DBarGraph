@@ -28,4 +28,11 @@ object MainForm: TMainForm
     Text = 'Label1'
     TabOrder = 4
   end
+  object PopupMenu1: TPopupMenu
+    Left = 1024
+    Top = 424
+    object MenuItem1: TMenuItem
+      Text = 'Version 1.0.0.1'
+    end
+  end
 end
