@@ -50,7 +50,7 @@ begin
   BarGraph := T3DBarGraph.Create(Self);
   BarGraph.Lb := Label1;
   BarGraph.Parent := Self;
-  //BarGraph.Align := TAlignLayout.Client;
+  BarGraph.Align := TAlignLayout.Client;
 
   BarGraph.ZMin := -30;
   BarGraph.ZMax := 30;
@@ -71,7 +71,6 @@ begin
 
   BarGraph.Position.X := 0;
   BarGraph.Position.Y := 0;
-
   BarGraph.BarColor := claGreen;
 
 
@@ -94,8 +93,6 @@ begin
   BarGraph.Add(2, 3, -5);
   }
 
-
-
   BarGraph.Add(0, 0, -15, claGreen);
   BarGraph.Add(1, 0, 14, claPurple);
   BarGraph.Add(2, 0, 14, claRed);
@@ -111,6 +108,9 @@ begin
   BarGraph.Add(0, 3, 5, claGreen);
   BarGraph.Add(1, 3, 5, claPurple);
   BarGraph.Add(2, 3, -5, claRed);
+
+
+  //BarGraph.Add(40, 40, -5, claRed);
 
   BarGraph.AddYLabel(0, '1987-1996');
   BarGraph.AddYLabel(1, '1937-1946');

@@ -5,7 +5,7 @@ interface
     FMX.Viewport3D, System.Classes, FMX.Objects3D, Math, System.SysUtils,
     FMX.MaterialSources, System.UIConsts, FMX.Types3D, System.Math.Vectors,
     System.UITypes, FMX.Controls3D, System.Types, FMX.Ani, FMX.Layers3D,
-    FMX.Graphics, FMX.Types, FMX.Objects, FMX.Dialogs, FMX.StdCtrls;
+    FMX.Graphics, FMX.Types, FMX.Objects, FMX.Dialogs, FMX.StdCtrls, FMX.Menus;
 
   const
 
@@ -61,10 +61,11 @@ interface
     ROTATION_STEP = 0.3;
     TRANSLATION_STEP = 0.02;
 
-    DEFAULT_RESOLUTION = 200;
+    DEFAULT_RESOLUTION = 150;
     ZOOM_STEP = 1;
-    CAMERA_MAX_Z = 5;
+    CAMERA_MAX_Z = 50;
     CAMERA_MIN_Z = -102;
+
     DURATION_CAMERA_CHANGE_VIEW_PLANE = 0.5;
     STAGE_INITIAL_ROT_ANGLE_Y = 45;
     CAMERA_INITIAL_ROT_ANGLE_X = -10;
@@ -333,6 +334,8 @@ interface
       private
         dir: Integer;
         FDown: TPointF;
+        PopupMenu: TPopupMenu;
+
 
 
         function GetZMin: Single;
@@ -376,6 +379,7 @@ interface
         MainCamera: TMyCamera;
         Lb: TLabel;
         Guia: TSphere;
+        zpos: Single;
 
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
@@ -418,6 +422,7 @@ interface
         procedure AddXLabel(col: Integer; val: String);
 
         procedure SetInitialValues;
+        function getZ: Single;
         procedure Reset;
 
       published
@@ -1373,7 +1378,6 @@ begin
   BarContainer.Position.Y := XYPlane.Position.Y;
 
 
-
   AxisYPanel.Height := XYPlane.Height;
   AxisYPanel.Depth := XYPlane.Depth;
   AxisYPanel.Position.Point := XYPlane.Position.Point +
@@ -2221,11 +2225,20 @@ begin
   SetInitialValues;
 end;
 
+
+function T3DBarGraph.getZ: Single;
+var
+  WR: Single;
+begin
+  WR := Stage.Width + Stage.Height;
+  Result := (WR*-15)/27;
+end;
+
 procedure T3DBarGraph.SetInitialValues;
 begin
   Camera := MainCamera.cam;
   MainCamera.RotationAngle.X := CAMERA_INITIAL_ROT_ANGLE_X;
-  MainCamera.Init(CAMERA_MIN_Z, CAMERA_MAX_Z, CAMERA_INITIAL_POSITION_Z, Guia);
+  MainCamera.Init(CAMERA_MIN_Z, CAMERA_MAX_Z, zpos, Guia);
 
   Stage.RotationAngle.Y := STAGE_INITIAL_ROT_ANGLE_Y;
   Stage.Position.X := 0;
@@ -2241,9 +2254,19 @@ begin
 end;
 
 constructor T3DBarGraph.Create(AOwner: TComponent);
+var
+  menuItem: TMenuItem;
 begin
   inherited;
   globalVars := TGlobalData.Create;
+  zpos := CAMERA_INITIAL_POSITION_Z;
+
+  PopupMenu := TPopupMenu.Create(self);
+  PopupMenu.Parent := Self;
+  menuItem := TMenuItem.Create(PopupMenu);
+  menuItem.Text := 'V1.0.0.1';
+  PopupMenu.AddObject(menuItem);
+
 
   status := 'static';
   UsingDesignCamera := False;
@@ -2294,6 +2317,12 @@ begin
       LeftLight.Position.X := -RightLight.Position.X;
       LeftLight.Position.Y := 0;
       LeftLight.Position.Z := 0;
+    end;
+
+  if Assigned(MainCamera) then
+    begin
+      zPos := getZ;
+      MainCamera.Position.Z := zPos;
     end;
 end;
 
@@ -2351,7 +2380,7 @@ begin
   if (newZ < mc.MaxZ) and (newZ > mc.MinZ) then
      mc.Position.Z := newZ;
 
-  Lb.Text := Format('z: %f', [mc.Position.Z]);
+  Lb.Text := Format('z: %f, w: %f, h:%f', [mc.Position.Z, stage.Width, stage.Depth]);
 
 end;
 
@@ -2369,13 +2398,20 @@ end;
 procedure T3DBarGraph.MouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
 var
   val: boolean;
+  P: TPointF;
 begin
   Tag := 0;
   FDown := PointF(X, Y);
   if ((ssLeft in Shift) or (ssCtrl in Shift)) and (Status = 'static') then
     begin
       Status := 'MouseMove';
-    end;
+    end
+  else
+  if (ssRight in Shift) and (Status = 'static') then
+   begin
+     P := LocalToScreen(PointF(X, Y));
+     PopupMenu.Popup(P.X, P.Y);
+   end;
 end;
 
 procedure T3DBarGraph.MouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
