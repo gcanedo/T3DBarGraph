@@ -43,6 +43,13 @@ type
     Label12: TLabel;
     NumberBox3: TNumberBox;
     Button1: TButton;
+    Switch1: TSwitch;
+    Label13: TLabel;
+    Label15: TLabel;
+    Label14: TLabel;
+    Label16: TLabel;
+    Label17: TLabel;
+    Label18: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure ColorComboBox2Change(Sender: TObject);
     procedure ColorComboBox1Change(Sender: TObject);
@@ -58,6 +65,7 @@ type
     procedure NumberBox2ChangeTracking(Sender: TObject);
     procedure NumberBox3ChangeTracking(Sender: TObject);
     procedure Button1Click(Sender: TObject);
+    procedure Switch1Switch(Sender: TObject);
 
   private
     { Private declarations }
@@ -214,6 +222,11 @@ end;
 procedure TMainForm.NumberBox3ChangeTracking(Sender: TObject);
 begin
   BarGraph.NumTicks := Round(NumberBox3.Value);
+end;
+
+procedure TMainForm.Switch1Switch(Sender: TObject);
+begin
+  BarGraph.TurnLights(Switch1.IsChecked);
 end;
 
 end.

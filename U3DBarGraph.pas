@@ -212,6 +212,8 @@ interface
         property RowCount: Integer read FRowCount write SetRowCount;
         property ColCount: Integer read FColCount write SetColCount;
         procedure UpdatePositions;
+        procedure InvalidateSelected;
+        procedure InvalidateNotSelectedBars;
         function IndexOf(row, col: Integer): TBar;
     end;
 
@@ -355,6 +357,7 @@ interface
         procedure InitMouseEvents;
         procedure SetPositionLights;
 
+
         procedure SetZLabel(val: String);
         function GetZLabel: String;
 
@@ -379,6 +382,7 @@ interface
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
         procedure Invalidate;
+        procedure TurnLights(Val: Boolean);
         procedure Add(row, col: Integer; Value: Single; cl: TAlphaColor = 0);
 
         procedure ViewNegativePlane;
@@ -1341,6 +1345,8 @@ end;
 procedure TMainContainer.Invalidate;
 begin
   BarContainer.UpdatePositions;
+  BarContainer.InvalidateSelected;
+
   ResizePlanes;
 
   AxisYPanel.TopSticker.Invalidate;
@@ -1424,11 +1430,13 @@ begin
   P.Width := Q.Width;
   P.Height := PANEL_PAD;
   P.Position.Y := -Q.Height/2 - P.Height/2;
+  P.Invalidate;
 
   P := Q.FindComponent('BottomPanel') as TTextLayer3D;
   P.Width := Q.Width;
   P.Height := PANEL_PAD;
   P.Position.Y := Q.Height/2 + P.Height/2;
+  P.Invalidate;
 end;
 
 procedure TMainContainer.ResizeBordersL(Q: TRectangle3D);
@@ -1441,12 +1449,14 @@ begin
   P.Height := PANEL_PAD;
   P.Position.Y := -Q.Height/2 - P.Height/2;
   P.RotationAngle.Y := 90;
+  P.Invalidate;
 
   P := Q.FindComponent('BottomPanel') as TTextLayer3D;
   P.Width := Q.Depth;
   P.Height := PANEL_PAD;
   P.Position.Y := Q.Height/2 + P.Height/2;
   P.RotationAngle.Y := 90;
+  P.Invalidate;
 end;
 
 procedure TMainContainer.CreateYZPlane;
@@ -1867,6 +1877,39 @@ begin
       end;
 end;
 
+procedure TBarContainer.InvalidateNotSelectedBars;
+var
+  I: Integer;
+  bar: TBar;
+begin
+  for I := 0 to ChildrenCount - 1 do
+    if Children[I] is TBar then
+      begin
+        bar := Children[I] as TBar;
+        bar.fcolor := Stg.global.BarColor;
+        if not bar.isSelected then bar.color := bar.fcolor;
+        bar.repaint;
+      end;
+end;
+
+procedure TBarContainer.InvalidateSelected;
+var
+  I: Integer;
+  bar: TBar;
+begin
+  for I := 0 to ChildrenCount - 1 do
+    if Children[I] is TBar then
+      begin
+        bar := Children[I] as TBar;
+        if bar.isSelected then
+          begin
+            bar.color := Stg.global.BarSelectedColor;
+            Exit;
+          end;
+      end;
+end;
+
+
 function TBarContainer.IndexOf(row, col: Integer): TBar;
 var
   comp: TComponent;
@@ -2156,7 +2199,11 @@ begin
   if (Assigned(globalVars)) and (val <> globalVars.BarColor) then
     begin
       globalVars.BarColor := val;
-      if Assigned(Stage) then Stage.Invalidate;
+      if Assigned(Stage) then
+        begin
+          Stage.BarContainer.InvalidateNotSelectedBars;
+          Stage.Invalidate;
+        end;
     end;
 end;
 
@@ -2356,6 +2403,12 @@ begin
   RightLight.Parent := Self;
   SetPositionLights;
   InitMouseEvents;
+end;
+
+procedure TBarGraph.TurnLights(Val: Boolean);
+begin
+  LeftLight.Enabled := Val;
+  RightLight.Enabled := Val;
 end;
 
 procedure TBarGraph.SetPositionLights;
