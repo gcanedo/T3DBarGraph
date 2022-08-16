@@ -50,6 +50,7 @@ type
     Label16: TLabel;
     Label17: TLabel;
     Label18: TLabel;
+    StyleBook1: TStyleBook;
     procedure FormCreate(Sender: TObject);
     procedure ColorComboBox2Change(Sender: TObject);
     procedure ColorComboBox1Change(Sender: TObject);
@@ -166,6 +167,8 @@ begin
   BarGraph.Add(0, 3, 5, claGreen);
   BarGraph.Add(1, 3, 5, claPurple);
   BarGraph.Add(2, 3, -5, claRed);
+
+  BarGraph.MainCamera.Position.Z := -2;
 
   InitComps;
 end;
