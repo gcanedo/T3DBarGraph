@@ -75,6 +75,7 @@ interface
     SIZE_GUIDES = 0.001;
 
   type
+    TMainContainer = class;
 
     TMyCamera = class(TDummy)
       public
@@ -110,7 +111,7 @@ interface
     end;
 
     TInfoStr = Array of String;
-    TMainContainer = class;
+
     TOnUpdateEvent = procedure of object;
 
     TInfoCell = record
@@ -329,14 +330,11 @@ interface
 
     end;
 
-
-    T3DBarGraph = class(TViewport3D)
+    TBarGraph = class(TViewport3D)
       private
         dir: Integer;
         FDown: TPointF;
         PopupMenu: TPopupMenu;
-
-
 
         function GetZMin: Single;
         procedure SetZMin(val: Single);
@@ -347,8 +345,6 @@ interface
 
         function GetAutoScale: Boolean;
         procedure SetAutoScale(val: Boolean);
-
-
 
         procedure DoZoom(aIn: Boolean);
         procedure MouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean);
@@ -377,12 +373,12 @@ interface
         PosMouse: TPointF;
         LeftLight, RightLight: TLight;
         MainCamera: TMyCamera;
-        Lb: TLabel;
-        Guia: TSphere;
+        Guide: TSphere;
         zpos: Single;
 
         constructor Create(AOwner: TComponent); override;
         destructor Destroy; override;
+        procedure Invalidate;
         procedure Add(row, col: Integer; Value: Single; cl: TAlphaColor = 0);
 
         procedure ViewNegativePlane;
@@ -425,33 +421,46 @@ interface
         function getZ: Single;
         procedure Reset;
 
-      published
+
 
         property ZLabel: String read GetZLabel write SetZLabel;
         property YLabel: String read GetYLabel write SetYLabel;
         property XLabel: String read GetXLabel write SetXLabel;
 
 
-        property ZMin: Single read GetZMin write SetZMin;
-        property ZMax: Single read GetZMax write SetZMax;
-        property NumTicks: Integer read GetNumTicks write SetNumTicks;
-        property AutoScale: Boolean read GetAutoScale write SetAutoScale;
 
+
+
+      published
 
         property BackgroundColor: TAlphaColor read GetBackgroundColor write SetBackgroundColor;
-        property XYPlaneColor: TAlphaColor read GetXYPlaneColor write SetXYPlaneColor;
-        property GridColor: TAlphaColor read GetGridColor write SetGridColor;
-        property FontColor: TAlphaColor read GetBarGraphFontColor write SetBarGraphFontColor;
+        property AutoScale: Boolean read GetAutoScale write SetAutoScale;
+        property NumTicks: Integer read GetNumTicks write SetNumTicks;
 
-        property XZandYZPlaneColor: TAlphaColor read GetXZandYZPlaneColor write SetXZandYZPlaneColor;
-        property BarColor: TAlphaColor read GetBarColor write SetBarColor;
         property BarSelectedColor: TAlphaColor read GetBarSelectedColor write SetBarSelectedColor;
-        property LegendBackgroundColor: TAlphaColor read GetLegendBackgroundColor write SetLegendBackgroundColor;
+        property BarColor: TAlphaColor read GetBarColor write SetBarColor;
+
+        property ZMin: Single read GetZMin write SetZMin;
+        property ZMax: Single read GetZMax write SetZMax;
+        property GridColor: TAlphaColor read GetGridColor write SetGridColor;
+        property XYPlaneColor: TAlphaColor read GetXYPlaneColor write SetXYPlaneColor;
+        property FontColor: TAlphaColor read GetBarGraphFontColor write SetBarGraphFontColor;
+        property XZandYZPlaneColor: TAlphaColor read GetXZandYZPlaneColor write SetXZandYZPlaneColor;
         property LegendFontColor: TAlphaColor read GetLegendFontColor write SetLegendFontColor;
+        property LegendBackgroundColor: TAlphaColor read GetLegendBackgroundColor write SetLegendBackgroundColor;
+
+
 
     end;
 
+procedure Register;
+
 implementation
+
+procedure Register;
+begin
+  RegisterComponents('UofW', [TBarGraph]);
+end;
 
 function NiceNum(val: Single):String;
 begin
@@ -795,7 +804,7 @@ end;
 
 procedure TGroupSticker.Invalidate;
 begin
-  Lb.Fill := TBrush.Create(TBrushKind.Solid, MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY));
+  Lb.Fill.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY);
   Lb.Color := Stg.global.BarGraphFontColor;
 end;
 
@@ -818,7 +827,8 @@ begin
   Lb.Resolution := DEFAULT_RESOLUTION;
   Lb.RotationAngle.Z := -90;
   Lb.Color := Stg.global.BarGraphFontColor;
-  Lb.Fill := TBrush.Create(TBrushKind.Solid, MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY));
+  Lb.Fill.Kind := TBrushKind.Solid;
+  Lb.Fill.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY);
 
   Lb.Font.Size := Lb.Resolution*PANEL_PAD;
   Lb.Position.X := Width/2 - Lb.Height/2;
@@ -1224,9 +1234,9 @@ end;
 
 function TMainContainer.RequestData(b: Tbar): TInfoStr;
 var
-  gb: T3DBarGraph;
+  gb: TBarGraph;
 begin
-  gb := Boss as T3DBarGraph;
+  gb := Boss as TBarGraph;
   Result := [
     Format('%s: %s', [gb.ZLabel, NiceNum(b.val)]),
     Format('%s: %s', [gb.XLabel, DataXAxis.Data(b.col)]),
@@ -1246,8 +1256,8 @@ begin
   if not Assigned(FGlobal)then
     begin
       Root := Owner;
-      while not (Root is T3DBarGraph) do Root := Root.Owner;
-      FGlobal := (Root as T3DBarGraph).globalVars;
+      while not (Root is TBarGraph) do Root := Root.Owner;
+      FGlobal := (Root as TBarGraph).globalVars;
     end;
   Result := FGlobal;
 end;
@@ -1255,7 +1265,10 @@ end;
 constructor TMainContainer.Create(AOwner: TComponent);
 begin
   inherited;
+
   Boss := AOwner;
+  FGlobal := (Boss as TBarGraph).globalVars;
+
   {
   Guia := TSphere.Create(Self);
   Guia.Parent := Self;
@@ -1276,6 +1289,8 @@ begin
 
   ColorPlane := TColorMaterialSource.Create(Self);
   ColorPlane.Color := global.XZPlaneYZPlaneBackgroundColor;
+
+
 
   BarContainer := TBarContainer.Create(Self);
   BarContainer.Parent := Self;
@@ -1319,6 +1334,7 @@ begin
   YZPlane.OnRender := YZPlaneRender;
   XYPlane.OnRender := XYPlaneRender;
   OnRender := MainRender;
+
 end;
 
 
@@ -1344,7 +1360,7 @@ begin
   HalfPlaneHeight := Max(Width, Depth);
   Height := HalfPlaneHeight;
 
-  (Boss as T3DBarGraph).SetPositionLights;
+  (Boss as TBarGraph).SetPositionLights;
 
 
   XZPlane.Width := Width;
@@ -1592,7 +1608,7 @@ begin
   XYPlane.MaterialSource := ColorPlaneXY;
   XYPlane.Parent := Self;
   XYPlane.HitTest := false;
-  XYPlane.OnClick := (Boss as T3DBarGraph).ViewportClick;
+  XYPlane.OnClick := (Boss as TBarGraph).ViewportClick;
   XYPlane.Opacity := PLANE_OPACITY;
 end;
 
@@ -1644,9 +1660,9 @@ procedure TBarContainer.UnSelected(ExceptBar: TBar = Nil);
 var
   I: Integer;
   b: TBar;
-  gb: T3DBarGraph;
+  gb: TBarGraph;
 begin
-  gb := Stg.Boss as T3DBarGraph;
+  gb := Stg.Boss as TBarGraph;
   if gb.Camera <> gb.MainCamera.cam then
     begin
       gb.Camera := gb.MainCamera.cam;
@@ -1679,44 +1695,44 @@ end;
 procedure TBarContainer.BarMouseMove(Sender: TObject; Shift: TShiftState; X,
   Y: Single; RayPos, RayDir: TVector3D);
 var
-  gb: T3DBarGraph;
+  gb: TBarGraph;
 begin
-  gb := Stg.Boss as T3DBarGraph;
+  gb := Stg.Boss as TBarGraph;
   gb.MouseMove(Sender, Shift, X, Y);
 end;
 
 procedure TBarContainer.BarMouseDown(Sender: TObject; Button: TMouseButton;
   Shift: TShiftState; X, Y: Single; RayPos, RayDir: TVector3D);
 var
-  gb: T3DBarGraph;
+  gb: TBarGraph;
 begin
-  gb := Stg.Boss as T3DBarGraph;
+  gb := Stg.Boss as TBarGraph;
   gb.MouseDown(Sender, Button, Shift, X, Y);
 end;
 
 procedure TBarContainer.BarMouseUp(Sender: TObject; Button: TMouseButton;
   Shift: TShiftState; X, Y: Single; RayPos, RayDir: TVector3D);
 var
-  gb: T3DBarGraph;
+  gb: TBarGraph;
 begin
-  gb := Stg.Boss as T3DBarGraph;
+  gb := Stg.Boss as TBarGraph;
   gb.MouseUp(Sender, Button, Shift, X, Y);
 end;
 
 procedure TBarContainer.LegendClick(Sender: TObject);
 var
-  gb: T3DBarGraph;
+  gb: TBarGraph;
 begin
-  gb := Stg.Boss as T3DBarGraph;
+  gb := Stg.Boss as TBarGraph;
   gb.Camera := Legend.Sign.Pack.cam;
 end;
 
 procedure TBarContainer.BarClick(Sender: TObject);
 var
   bar: TBar;
-  gb: T3DBarGraph;
+  gb: TBarGraph;
 begin
-  gb := Stg.Boss as T3DBarGraph;
+  gb := Stg.Boss as TBarGraph;
 
   if (gb.Tag <> 1) and (Sender is TBar) then
     begin
@@ -1942,7 +1958,7 @@ begin
 
 end;
 
-procedure T3DBarGraph.ViewNegativePlane;
+procedure TBarGraph.ViewNegativePlane;
 begin
   Stage.PanelRightTicks.ShowNegativeSpace;
   Stage.PanelLeftTicks.ShowNegativeSpace;
@@ -1957,7 +1973,7 @@ begin
   SetStateRotationAngle(TPoint3D.Create(0, 45, 0));
 end;
 
-procedure T3DBarGraph.ViewPositivePlane;
+procedure TBarGraph.ViewPositivePlane;
 begin
   Stage.PanelRightTicks.ShowPositiveSpace;
   Stage.PanelLeftTicks.ShowPositiveSpace;
@@ -1971,7 +1987,7 @@ begin
   SetStateRotationAngle(TPoint3D.Create(0, 45, 0));
 end;
 
-procedure T3DBarGraph.SetStateRotationAngle(ang: TPoint3D);
+procedure TBarGraph.SetStateRotationAngle(ang: TPoint3D);
 var
   t: Single;
 begin
@@ -1988,7 +2004,7 @@ begin
 end;
 
 
-procedure T3DBarGraph.SetXLabel(val: String);
+procedure TBarGraph.SetXLabel(val: String);
 begin
   if val <> Stage.AxisXPanel.TopSticker.Lb.Text then
     begin
@@ -1999,12 +2015,12 @@ begin
     end;
 end;
 
-function T3DBarGraph.GetXLabel: String;
+function TBarGraph.GetXLabel: String;
 begin
   Result := Stage.AxisXPanel.TopSticker.Lb.Text;
 end;
 
-procedure T3DBarGraph.SetYLabel(val: String);
+procedure TBarGraph.SetYLabel(val: String);
 begin
   if val <> Stage.AxisYPanel.TopSticker.Lb.Text then
     begin
@@ -2016,12 +2032,12 @@ begin
     end;
 end;
 
-function T3DBarGraph.GetYLabel: String;
+function TBarGraph.GetYLabel: String;
 begin
   Result := Stage.AxisYPanel.TopSticker.Lb.Text;
 end;
 
-procedure T3DBarGraph.SetZLabel(val: String);
+procedure TBarGraph.SetZLabel(val: String);
 begin
   if val <> Stage.FZLabel then
     begin
@@ -2031,156 +2047,189 @@ begin
     end;
 end;
 
-function T3DBarGraph.GetZLabel: String;
+function TBarGraph.GetZLabel: String;
 begin
   Result := Stage.FZLabel;
 end;
 
-function T3DBarGraph.GetZMin: Single;
+procedure TBarGraph.Invalidate;
 begin
-  Result := globalVars.ZMin;
+  if Assigned(Stage) then
+    Stage.Invalidate;
 end;
 
-procedure T3DBarGraph.SetZMin(val: Single);
+function TBarGraph.GetZMin: Single;
 begin
-  if val <> globalVars.ZMin then
+  if Assigned(globalVars) then
+    Result := globalVars.ZMin
+  else
+    Result := AXIS_DEFAULT_ZMIN;
+end;
+
+procedure TBarGraph.SetZMin(val: Single);
+begin
+  if (Assigned(globalVars)) and (val <> globalVars.ZMin) then
     begin
       globalVars.ZMin := val;
-      Stage.Invalidate;
+      if Assigned(Stage) then Stage.Invalidate;
     end;
 end;
 
-function T3DBarGraph.GetZMax: Single;
+function TBarGraph.GetZMax: Single;
 begin
-  Result := globalVars.ZMax;
+  if Assigned(globalVars) then
+    Result := globalVars.ZMax
+  else
+    Result := AXIS_DEFAULT_ZMAX;
 end;
 
-function T3DBarGraph.GetAutoScale: Boolean;
+procedure TBarGraph.SetZMax(val: Single);
 begin
-  Result := globalVars.AutoScale;
+  if (Assigned(globalVars)) and (val <> globalVars.ZMax) then
+    begin
+      globalVars.ZMax := val;
+      if Assigned(Stage) then Stage.Invalidate;
+    end;
 end;
 
-function T3DBarGraph.GetBarColor: TAlphaColor;
+function TBarGraph.GetLegendFontColor: TAlphaColor;
 begin
-  Result := globalVars.BarColor;
+  if Assigned(globalVars) then
+    Result := globalVars.LegendFontColor
+  else
+    Result := LEGEND_FONT_COLOR;
 end;
 
-function T3DBarGraph.GetLegendFontColor: TAlphaColor;
+procedure TBarGraph.SetLegendFontColor(val: TAlphaColor);
 begin
-  Result := globalVars.LegendFontColor;
-end;
-
-procedure T3DBarGraph.SetLegendFontColor(val: TAlphaColor);
-begin
-  if val <> globalVars.LegendFontColor then
+  if (Assigned(globalVars)) and (val <> globalVars.LegendFontColor) then
     begin
       globalVars.LegendFontColor := val;
       Stage.BarContainer.Legend.Invalidate;
     end;
 end;
 
-function T3DBarGraph.GetLegendBackgroundColor: TAlphaColor;
+function TBarGraph.GetLegendBackgroundColor: TAlphaColor;
 begin
-  Result := globalVars.LegendBackgroundColor;
+  if Assigned(globalVars) then
+    Result := globalVars.LegendBackgroundColor
+  else
+    Result := LEGEND_BOX_BACKGROUND_COLOR;
 end;
 
-procedure T3DBarGraph.SetLegendBackgroundColor(val: TAlphaColor);
+procedure TBarGraph.SetLegendBackgroundColor(val: TAlphaColor);
 begin
-  if val <> globalVars.LegendBackgroundColor then
+  if (Assigned(globalVars)) and (val <> globalVars.LegendBackgroundColor) then
     begin
       globalVars.LegendBackgroundColor := val;
       Stage.BarContainer.Legend.Invalidate;
     end;
 end;
 
-function T3DBarGraph.GetBarSelectedColor: TAlphaColor;
+function TBarGraph.GetBarSelectedColor: TAlphaColor;
 begin
-  Result := BarSelectedColor;
+  if Assigned(globalVars) then
+    Result := globalVars.BarSelectedColor
+  else
+    Result := BAR_SELECTED_DEFAULT_COLOR;
 end;
 
-procedure T3DBarGraph.SetBarSelectedColor(val: TAlphaColor);
+procedure TBarGraph.SetBarSelectedColor(val: TAlphaColor);
 begin
-  if val <> globalVars.BarSelectedColor then
+  if (Assigned(globalVars)) and (val <> globalVars.BarSelectedColor) then
     begin
       globalVars.BarSelectedColor := val;
-      Stage.Invalidate;
+      if Assigned(Stage) then Stage.Invalidate;
     end;
 end;
 
-
-procedure T3DBarGraph.SetBarColor(val: TAlphaColor);
+function TBarGraph.GetBarColor: TAlphaColor;
 begin
-  if val <> globalVars.BarColor then
+  if Assigned(globalVars) then
+    Result := globalVars.BarColor
+  else
+    Result := BAR_DEFAULT_COLOR;
+end;
+
+procedure TBarGraph.SetBarColor(val: TAlphaColor);
+begin
+  if (Assigned(globalVars)) and (val <> globalVars.BarColor) then
     begin
       globalVars.BarColor := val;
-      Stage.Invalidate;
+      if Assigned(Stage) then Stage.Invalidate;
     end;
 end;
 
-function T3DBarGraph.GetBackgroundColor: TAlphaColor;
+
+function TBarGraph.GetBarGraphFontColor: TAlphaColor;
 begin
-  Result := color;
+  if Assigned(globalVars) then
+    Result := globalVars.BarGraphFontColor
+  else
+    Result := BARGRAPH_FONT_COLOR;
 end;
 
-function T3DBarGraph.GetBarGraphFontColor: TAlphaColor;
+procedure TBarGraph.SetBarGraphFontColor(val: TAlphaColor);
 begin
-  Result := globalVars.BarGraphFontColor;
-end;
-
-procedure T3DBarGraph.SetBarGraphFontColor(val: TAlphaColor);
-begin
-  if val <> globalVars.BarGraphFontColor then
+  if (Assigned(globalVars)) and (val <> globalVars.BarGraphFontColor) then
     begin
       globalVars.BarGraphFontColor := val;
-      Stage.Invalidate;
+      if Assigned(Stage) then Stage.Invalidate;
     end;
 end;
 
-function T3DBarGraph.GetGridColor: TAlphaColor;
+function TBarGraph.GetGridColor: TAlphaColor;
 begin
-  Result := globalVars.BarGraphGridColor;
+  if Assigned(globalVars) then
+    Result := globalVars.BarGraphGridColor
+  else
+    Result := BARGRAPH_DEFAULT_GRID_COLOR;
 end;
 
-procedure T3DBarGraph.SetGridColor(val: TAlphaColor);
+procedure TBarGraph.SetGridColor(val: TAlphaColor);
 begin
-  if val <> globalVars.BarGraphGridColor then
+  if (Assigned(globalVars)) and (val <> globalVars.BarGraphGridColor) then
     begin
       globalVars.BarGraphGridColor := val;
-      Stage.Invalidate;
+      if Assigned(Stage) then Stage.Invalidate;
     end;
 end;
 
-
-function T3DBarGraph.GetXZandYZPlaneColor: TAlphaColor;
+function TBarGraph.GetXZandYZPlaneColor: TAlphaColor;
 begin
-  Result := globalVars.XZPlaneYZPlaneBackgroundColor;
+  if Assigned(globalVars) then
+    Result := globalVars.XZPlaneYZPlaneBackgroundColor
+  else
+    Result := XZPLANE_YZPLANE_DEFAULT_COLOR;
 end;
 
-procedure T3DBarGraph.SetXZandYZPlaneColor(val: TAlphaColor);
+procedure TBarGraph.SetXZandYZPlaneColor(val: TAlphaColor);
 begin
-  if val <> globalVars.XZPlaneYZPlaneBackgroundColor then
+  if (Assigned(globalVars)) and (val <> globalVars.XZPlaneYZPlaneBackgroundColor) then
     begin
       globalVars.XZPlaneYZPlaneBackgroundColor := val;
-      Stage.Invalidate;
+      if Assigned(Stage) then Stage.Invalidate;
     end;
 end;
 
-
-function T3DBarGraph.GetXYPlaneColor: TAlphaColor;
+function TBarGraph.GetXYPlaneColor: TAlphaColor;
 begin
-  Result := globalVars.XYPlaneBackgroundColor;
+  if Assigned(globalVars) then
+    Result := globalVars.XYPlaneBackgroundColor
+  else
+    Result := XYPLANE_BACKGROUNDCOLOR;
 end;
 
-procedure T3DBarGraph.SetXYPlaneColor(val: TAlphaColor);
+procedure TBarGraph.SetXYPlaneColor(val: TAlphaColor);
 begin
-  if val <> globalVars.XYPlaneBackgroundColor then
+  if (Assigned(globalVars)) and (val <> globalVars.XYPlaneBackgroundColor) then
     begin
       globalVars.XYPlaneBackgroundColor := val;
-      Stage.Invalidate;
+      if Assigned(Stage) then Stage.Invalidate;
     end;
 end;
 
-procedure T3DBarGraph.SetBackgroundColor(val: TAlphaColor);
+procedure TBarGraph.SetBackgroundColor(val: TAlphaColor);
 begin
   if val <> color then
     begin
@@ -2188,45 +2237,53 @@ begin
     end;
 end;
 
-procedure T3DBarGraph.SetAutoScale(val: Boolean);
+function TBarGraph.GetBackgroundColor: TAlphaColor;
 begin
-  if val <> globalVars.AutoScale then
+  Result := color;
+end;
+
+function TBarGraph.GetAutoScale: Boolean;
+begin
+  if Assigned(globalVars) then
+    Result := globalVars.AutoScale
+  else
+    Result := false;
+end;
+
+procedure TBarGraph.SetAutoScale(val: Boolean);
+begin
+  if (Assigned(globalVars)) and (val <> globalVars.AutoScale) then
     begin
-      globalVars.AutoScale := true;
-      Stage.Invalidate;
+      globalVars.AutoScale := val;
+      if Assigned(Stage) then Stage.Invalidate;
     end;
 end;
 
-procedure T3DBarGraph.SetZMax(val: Single);
+
+function TBarGraph.GetNumTicks: Integer;
 begin
-  if val <> globalVars.ZMax then
-    begin
-      globalVars.ZMax := val;
-      Stage.Invalidate;
-    end;
+  if Assigned(globalVars) then
+    Result := globalVars.NumTicks
+  else
+    Result := ZAXIS_DEFAULT_NUMTICKS;
 end;
 
-function T3DBarGraph.GetNumTicks: Integer;
+procedure TBarGraph.SetNumTicks(val: Integer);
 begin
-  Result := globalVars.NumTicks;
-end;
-
-procedure T3DBarGraph.SetNumTicks(val: Integer);
-begin
-  if val <> globalVars.NumTicks then
+  if (Assigned(globalVars)) and (val <> globalVars.NumTicks) then
     begin
       globalVars.NumTicks := val;
-      Stage.Invalidate;
+      if Assigned(Stage) then Stage.Invalidate;
     end;
 end;
 
-procedure T3DBarGraph.Reset;
+procedure TBarGraph.Reset;
 begin
   SetInitialValues;
 end;
 
 
-function T3DBarGraph.getZ: Single;
+function TBarGraph.getZ: Single;
 var
   WR: Single;
 begin
@@ -2234,11 +2291,11 @@ begin
   Result := (WR*-15)/27;
 end;
 
-procedure T3DBarGraph.SetInitialValues;
+procedure TBarGraph.SetInitialValues;
 begin
   Camera := MainCamera.cam;
   MainCamera.RotationAngle.X := CAMERA_INITIAL_ROT_ANGLE_X;
-  MainCamera.Init(CAMERA_MIN_Z, CAMERA_MAX_Z, zpos, Guia);
+  MainCamera.Init(CAMERA_MIN_Z, CAMERA_MAX_Z, zpos, Guide);
 
   Stage.RotationAngle.Y := STAGE_INITIAL_ROT_ANGLE_Y;
   Stage.Position.X := 0;
@@ -2246,18 +2303,19 @@ begin
   Stage.BarContainer.RotateLegend;
   Status := 'static';
 
-  Guia.Position.X := 0;
-  Guia.Position.Y := 0;
+  Guide.Position.X := 0;
+  Guide.Position.Y := 0;
   MainCamera.Position.X := 0;
   MainCamera.Position.Y := 0;
 
 end;
 
-constructor T3DBarGraph.Create(AOwner: TComponent);
+constructor TBarGraph.Create(AOwner: TComponent);
 var
   menuItem: TMenuItem;
 begin
   inherited;
+
   globalVars := TGlobalData.Create;
   zpos := CAMERA_INITIAL_POSITION_Z;
 
@@ -2266,29 +2324,28 @@ begin
   menuItem := TMenuItem.Create(PopupMenu);
   menuItem.Text := 'V1.0.0.1';
   PopupMenu.AddObject(menuItem);
-
-
   status := 'static';
   UsingDesignCamera := False;
   color := BARGRAPH_DEFAULT_BACKGROUND_COLOR;
 
-  Stage := TMainContainer.Create(Self);
-  Stage.Parent := Self;
+  if csDesigning in ComponentState then Exit;
 
-  Guia := TSphere.Create(Self);
-  Guia.Parent := Self;
-  Guia.width := SIZE_GUIDES;
-  Guia.Height := Guia.width;
-  Guia.Depth := Guia.Height;
-  Guia.HitTest := false;
-  Guia.Opacity := SHOW_GUIDES;
+  Stage := TMainContainer.Create(Self);
+  AddObject(Stage);
+
+  Guide := TSphere.Create(Self);
+  Guide.Parent := Self;
+  Guide.width := SIZE_GUIDES;
+  Guide.Height := Guide.width;
+  Guide.Depth := Guide.Height;
+  Guide.HitTest := false;
+  Guide.Opacity := SHOW_GUIDES;
 
   MainCamera := TMyCamera.Create(Self);
   MainCamera.Parent := self;
 
   SetInitialValues;
   dir := 1;
-
 
   LeftLight := TLight.Create(self);
   LeftLight.LightType := TLightType.Point;
@@ -2297,13 +2354,11 @@ begin
   RightLight := TLight.Create(self);
   RightLight.LightType := TLightType.Point;
   RightLight.Parent := Self;
-
   SetPositionLights;
-
   InitMouseEvents;
 end;
 
-procedure T3DBarGraph.SetPositionLights;
+procedure TBarGraph.SetPositionLights;
 var
   F: Single;
 begin
@@ -2326,7 +2381,7 @@ begin
     end;
 end;
 
-procedure T3DBarGraph.InitMouseEvents;
+procedure TBarGraph.InitMouseEvents;
 begin
   OnMouseWheel := MouseWheel;
   OnMouseDown := MouseDown;
@@ -2366,7 +2421,7 @@ begin
   cam.Target := t;
 end;
 
-procedure T3DBarGraph.DoZoom(aIn: Boolean);
+procedure TBarGraph.DoZoom(aIn: Boolean);
 var
   newZ: Single;
   mc: TMyCamera;
@@ -2380,22 +2435,21 @@ begin
   if (newZ < mc.MaxZ) and (newZ > mc.MinZ) then
      mc.Position.Z := newZ;
 
-  Lb.Text := Format('z: %f, w: %f, h:%f', [mc.Position.Z, stage.Width, stage.Depth]);
-
+  //Lb.Text := Format('z: %f, w: %f, h:%f', [mc.Position.Z, stage.Width, stage.Depth]);
 end;
 
-procedure T3DBarGraph.MouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean);
+procedure TBarGraph.MouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean);
 begin
   DoZoom(WheelDelta > 0);
 end;
 
-procedure T3DBarGraph.ViewportClick(Sender: TObject);
+procedure TBarGraph.ViewportClick(Sender: TObject);
 begin
   if Tag <> 1 then
     Stage.BarContainer.UnSelected;
 end;
 
-procedure T3DBarGraph.MouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+procedure TBarGraph.MouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
 var
   val: boolean;
   P: TPointF;
@@ -2414,7 +2468,7 @@ begin
    end;
 end;
 
-procedure T3DBarGraph.MouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
+procedure TBarGraph.MouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
 var
   Delta: TPointF;
   T: Single;
@@ -2426,8 +2480,8 @@ begin
       mc := Camera.Parent as TMyCamera;
       if Camera = MainCamera.cam then
         begin
-          guia.Position.X := guia.Position.X - Delta.X*TRANSLATION_STEP;
-          guia.Position.Y := guia.Position.Y - Delta.Y*TRANSLATION_STEP;
+          guide.Position.X := guide.Position.X - Delta.X*TRANSLATION_STEP;
+          guide.Position.Y := guide.Position.Y - Delta.Y*TRANSLATION_STEP;
           mc.Position.X := mc.Position.X - Delta.X*TRANSLATION_STEP;
           mc.Position.Y := mc.Position.Y - Delta.Y*TRANSLATION_STEP;
         end;
@@ -2443,10 +2497,10 @@ begin
   FDown := PointF(X, Y);
   Tag := 1;
 
-  Lb.Text := Format('W: %f, H:%f', [stage.ScreenBounds.Width, stage.ScreenBounds.Height]);
+  //Lb.Text := Format('W: %f, H:%f', [stage.ScreenBounds.Width, stage.ScreenBounds.Height]);
 end;
 
-procedure T3DBarGraph.MouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+procedure TBarGraph.MouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
 begin
   if(Status = 'MouseMove') then
     begin
@@ -2454,7 +2508,7 @@ begin
     end;
 end;
 
-procedure T3DBarGraph.Add(row, col: Integer; Value: Single; cl: TAlphaColor = 0);
+procedure TBarGraph.Add(row, col: Integer; Value: Single; cl: TAlphaColor = 0);
 var
   temp: TAlphaColor;
 begin
@@ -2465,19 +2519,19 @@ begin
   Stage.Invalidate;
 end;
 
-procedure T3DBarGraph.AddYLabel(row: Integer; val: String);
+procedure TBarGraph.AddYLabel(row: Integer; val: String);
 begin
   Stage.DataYAxis.Add(row, val);
 end;
 
-procedure T3DBarGraph.AddXLabel(col: Integer; val: String);
+procedure TBarGraph.AddXLabel(col: Integer; val: String);
 begin
   Stage.DataXAxis.Add(col, val);
 end;
 
-destructor T3DBarGraph.Destroy;
+destructor TBarGraph.Destroy;
 begin
-  globalVars.Destroy;
+  if Assigned(globalVars) then globalVars.Destroy;
   inherited;
 end;
 

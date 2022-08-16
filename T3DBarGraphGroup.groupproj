@@ -1,0 +1,36 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{D56639A1-F342-4368-B0C4-0A2DF51047FF}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="T3DBarGraphPackage.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="T3DBarGraphPackage">
+        <MSBuild Projects="T3DBarGraphPackage.dproj"/>
+    </Target>
+    <Target Name="T3DBarGraphPackage:Clean">
+        <MSBuild Projects="T3DBarGraphPackage.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="T3DBarGraphPackage:Make">
+        <MSBuild Projects="T3DBarGraphPackage.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="T3DBarGraphPackage"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="T3DBarGraphPackage:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="T3DBarGraphPackage:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

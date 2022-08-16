@@ -12,6 +12,11 @@ uses
 begin
 
   GlobalUseMetal := true;
+
+  {$IFDEF DEBUG}
+  ReportMemoryLeaksOnShutdown := True;
+  {$ENDIF}
+
   Application.Initialize;
   Application.CreateForm(TMainForm, MainForm);
   Application.Run;
