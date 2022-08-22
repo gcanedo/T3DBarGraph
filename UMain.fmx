@@ -81,6 +81,21 @@ object MainForm: TMainForm
           Text = 'V1.0.0.1'
         end
       end
+      object TPopupMenu
+        object TMenuItem
+          Text = 'V1.0.0.1'
+        end
+      end
+      object TPopupMenu
+        object TMenuItem
+          Text = 'V1.0.0.1'
+        end
+      end
+      object TPopupMenu
+        object TMenuItem
+          Text = 'V1.0.0.1'
+        end
+      end
     end
   end
   object Panel2: TPanel
@@ -371,19 +386,11 @@ object MainForm: TMainForm
     end
     object Label15: TLabel
       Position.X = 809.000000000000000000
+      Position.Y = 16.000000000000000000
       Size.Width = 329.000000000000000000
       Size.Height = 17.000000000000000000
       Size.PlatformDefault = False
       Text = 'ROTATE: Left Mouse Button. Down and Mouse Move.'
-      TabOrder = 34
-    end
-    object Label14: TLabel
-      Position.X = 809.000000000000000000
-      Position.Y = 17.000000000000000000
-      Size.Width = 329.000000000000000000
-      Size.Height = 17.000000000000000000
-      Size.PlatformDefault = False
-      Text = 'MOVE: [Ctrl] + Left Mouse Button. Down and Mouse Move.'
       TabOrder = 33
     end
     object Label16: TLabel
