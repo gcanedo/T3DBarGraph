@@ -192,6 +192,7 @@ interface
       private
         procedure SetRowCount(val: Integer);
         procedure SetColCount(val: Integer);
+        procedure RecalculateDataBounds;
       public
         FOnUpdate: TOnUpdateEvent;
         FRowCount, FColCount: Integer;
@@ -1957,6 +1958,22 @@ begin
       end;
 end;
 
+procedure TBarContainer.RecalculateDataBounds;
+var
+  I: Integer;
+  bar: TBar;
+begin
+  Stg.global.DataMin := MaxSingle;
+  Stg.global.DataMax := MinSingle;
+
+  for I := 0 to ChildrenCount - 1 do
+    if Children[I] is TBar then
+      begin
+        bar := Children[I] as TBar;
+        Stg.global.DataMin := Min(Stg.global.DataMin, bar.val);
+        Stg.global.DataMax := Max(Stg.global.DataMax, bar.val);
+      end;
+end;
 
 function TBarContainer.IndexOf(row, col: Integer): TBar;
 var
@@ -2028,23 +2045,35 @@ procedure TBarContainer.Add(row, col: Integer; Value: Single; cl: TAlphaColor = 
 var
   bar: TBar;
 begin
+  if (row < 0) or (col < 0) then
+    raise EArgumentException.Create('Row and column indexes must be greater than or equal to zero.');
+
   bar := IndexOf(row, col);
-  UpdatePositions;
-  if (bar <> Nil) and (bar.val <> Value) then
-    begin
-      bar.val := Value;
-      bar.Height := Abs(Value/Stg.Scale);
-      bar.SetPosition(RowCount, ColCount);
-      Stg.global.DataMin := Min(Stg.global.DataMin, value);
-      Stg.global.DataMax := Max(Stg.global.DataMax, value);
-    end
-  else
+
+  if bar = Nil then
     begin
       RowCount := Max(RowCount, row + 1);
       ColCount := Max(ColCount, col + 1);
-      Stg.global.DataMin := Min(Stg.global.DataMin, value);
-      Stg.global.DataMax := Max(Stg.global.DataMax, value);
+
       CreateBar(row, col, Value, cl);
+      bar := IndexOf(row, col);
+    end
+  else
+    begin
+      bar.val := Value;
+      bar.fcolor := cl;
+
+      if not bar.isSelected then
+        bar.color := cl;
+    end;
+
+  RecalculateDataBounds;
+  UpdatePositions;
+
+  if Assigned(bar) and bar.isSelected and (Legend.bar = bar) then
+    begin
+      Legend.Data := Stg.RequestData(bar);
+      Legend.Invalidate;
     end;
 end;
 
