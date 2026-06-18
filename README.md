@@ -1,8 +1,16 @@
 # T3DBarGraph
 
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+[![Delphi](https://img.shields.io/badge/Delphi-FireMonkey-red.svg)](https://www.embarcadero.com/products/delphi)
+[![Release](https://img.shields.io/github/v/release/gcanedo/T3DBarGraph)](https://github.com/gcanedo/T3DBarGraph/releases)
+
 T3DBarGraph is a Delphi / FireMonkey 3D bar chart component. It provides a reusable `TBarGraph` control built on top of `TViewport3D`, with support for interactive rotation, zooming, positive and negative values, axis labels, grid lines, color customization, lighting, plane transparency, and a selectable 3D legend.
 
 The repository also includes a FireMonkey demo application and a performance test application for comparing large datasets.
+
+Current public release: `v0.1.0`.
+
+![T3DBarGraph demo](assets/demo.gif)
 
 ## Features
 
@@ -34,6 +42,9 @@ The repository also includes a FireMonkey demo application and a performance tes
 |-- T3DBarGraphDemo.dproj        # Demo application project file
 |-- UMain.pas / UMain.fmx        # Demo form and UI
 |-- Test.dpr / UTest.pas         # Performance test application
+|-- CHANGELOG.md                 # Release history
+|-- CONTRIBUTING.md              # Contribution guidelines
+|-- ROADMAP.md                   # Planned improvements
 |-- LICENSE                      # Apache License 2.0
 `-- README.md
 ```
@@ -73,6 +84,8 @@ Prebuilt performance-test zips, when available, are published as GitHub Release 
 ## Releases
 
 GitHub Releases may include a prebuilt performance-test ZIP for users who want to try the executable without installing Delphi. The source repository keeps Delphi project files, forms, resources, and component code; platform build folders and local IDE artifacts are ignored.
+
+See `CHANGELOG.md` for release notes.
 
 ## Basic usage
 
@@ -201,6 +214,8 @@ procedure TurnLights(Val: Boolean);
 - The demo data is configured in `UMain.pas`.
 - The performance test is configured in `UTest.pas`.
 - The current validation workflow is manual RAD Studio testing plus the included performance test application.
+- Planned work is tracked in `ROADMAP.md`.
+- Contributions and bug reports are welcome through GitHub issues and pull requests. See `CONTRIBUTING.md`.
 
 ## License
 

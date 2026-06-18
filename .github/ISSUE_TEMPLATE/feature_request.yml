@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an improvement for T3DBarGraph
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What problem would this feature solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the API, behavior, or workflow you would like.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional. Mention other approaches if relevant.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, sample data, or related projects can help.

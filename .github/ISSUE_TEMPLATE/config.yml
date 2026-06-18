@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Roadmap
+    url: https://github.com/gcanedo/T3DBarGraph/blob/main/ROADMAP.md
+    about: Review planned work before opening a feature request.
