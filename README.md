@@ -34,7 +34,6 @@ The repository also includes a FireMonkey demo application and a performance tes
 |-- T3DBarGraphDemo.dproj        # Demo application project file
 |-- UMain.pas / UMain.fmx        # Demo form and UI
 |-- Test.dpr / UTest.pas         # Performance test application
-|-- PUBLIC_READINESS_REPORT.md   # Public release audit notes and cleanup summary
 |-- LICENSE                      # Apache License 2.0
 `-- README.md
 ```
@@ -202,7 +201,6 @@ procedure TurnLights(Val: Boolean);
 - The demo data is configured in `UMain.pas`.
 - The performance test is configured in `UTest.pas`.
 - The current validation workflow is manual RAD Studio testing plus the included performance test application.
-- `PUBLIC_READINESS_REPORT.md` documents the public-release cleanup and audit work that was done before publishing.
 
 ## License
 

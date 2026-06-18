@@ -78,6 +78,8 @@ __recovery/
 patch/
 implementation_plan.md
 security-audit-report.md
+PUBLIC_READINESS_REPORT.md
+info.plist.TemplateOSX.xml
 
 # Local release artifacts. Upload distribution zips as GitHub Release assets,
 # not as source-controlled repository files.
