@@ -4,9 +4,9 @@
 
 - Repository: `gcanedo/T3DBarGraph`
 - Branch: `fix/duplicate-bars-public-readiness`
-- Date: 2026-06-17
+- Last updated: 2026-06-18
 - Reviewer: Codex
-- Status: Not recommended to publish as-is until generated/binary artifacts are reviewed and cleaned up.
+- Status: Not recommended to publish as-is until generated/binary artifacts are reviewed and either intentionally kept or cleaned up.
 
 ## Secret scan
 
@@ -14,23 +14,24 @@
 
 - Tools/commands used:
   - `powershell -ExecutionPolicy Bypass -File patch\scripts\security-audit.ps1`
-  - `git grep` manual search for secret-related terms, reporting only file paths and line numbers
-  - `git ls-files` suspicious filename search
-- Findings: No suspicious secret filenames or secret-related string matches were found in tracked files.
+  - Manual suspicious filename search with `git log --all --name-only`
+  - Manual current-tree secret-term search with `git grep -l`, reporting only file names
+  - Manual generated/binary artifact search with `git ls-files`
+- Findings: No suspicious secret filenames were found.
+- Notes: The only current-tree secret-term match was `PUBLIC_READINESS_REPORT.md` itself, because it documents the secret scan. No credential value was printed.
 
 ### Full Git history
 
 - Tools/commands used:
   - Included PowerShell audit script
-  - Manual `git log --all --name-only` suspicious filename search
-  - Manual commit-by-commit `git grep` search for secret-related terms, reporting only commit SHA, file path, and line number
-- Findings: No suspicious secret filenames or secret-related string matches were found in Git history.
+  - Manual full-history suspicious filename search
+  - Manual commit-by-commit secret-term search, reporting only commit SHA and file name
+- Findings: No suspicious secret filenames were found. The only secret-term history match was `PUBLIC_READINESS_REPORT.md` in commit `f865aac`, because it documents the scan.
 
-### Decision
+### Tool limitations
 
-- Safe to publish as-is? No.
-- Reason: No secrets were found by the available checks, but generated/binary artifacts are tracked in the current tree and history. Review and cleanup are recommended before making the repository public.
-- Notes: `gitleaks` was not installed on PATH, so it was not run. `bash` was not available, so the Bash audit script could not be run. The PowerShell audit script generated `security-audit-report.md`, but emitted Markdown formatting errors; manual checks were run to cover the missing sections.
+- `gitleaks` was not installed on PATH, so it was not run.
+- The included PowerShell script generated `security-audit-report.md`, but emitted Markdown formatting errors around fenced code blocks. Manual checks were run to cover the relevant sections.
 
 ## Generated/binary artifacts
 
@@ -68,44 +69,53 @@ Generated or binary-looking paths found in history:
 
 ### Recommended cleanup
 
-- Current tree cleanup: Review the listed generated/binary artifacts and remove only after owner approval.
-- History cleanup: If the repository must be public and history size/content matters, consider a fresh public repository or an approved history cleanup.
-- Whether `git filter-repo` or a fresh public repo is recommended: A fresh public repository is the safer option if historical binaries should not be exposed. Do not rewrite history without explicit owner approval.
+- Review the listed generated/binary artifacts before making the repository public.
+- Do not delete files or rewrite history without owner approval.
+- If historical binaries should not be exposed, a fresh public repository may be safer than rewriting this history.
 
-## Code fix
+## Code changes
 
-### Files changed
+### Files changed intentionally
 
 - `U3DBarGraph.pas`
+- `UMain.pas`
+- `UTest.pas`
+- `PUBLIC_READINESS_REPORT.md`
 
-### Behavior fixed
+### Behavior fixed or improved
 
-Repeated calls to `TBarGraph.Add(row, col, value, color)` for the same row/column now update the existing bar instead of creating a duplicate component. `TBarContainer.Add` now distinguishes between missing and existing bars, recalculates data bounds after updates, refreshes positions, and refreshes the selected legend data when the selected bar is modified.
+- Repeated calls to `TBarGraph.Add(row, col, value, color)` for the same row/column update the existing bar instead of creating duplicates.
+- Large datasets switch to a `TMesh`-based render path, reducing object count and allowing tests such as 50,000 bars.
+- Mesh picking was added so clicking bars still selects the corresponding data item in mesh mode.
+- A screen-space picking fallback was added for more reliable bar selection.
+- `PlaneOpacity` was added for the three planes, with default opacity set to `0.5`.
+- Transparent plane/tick text layers now keep depth testing enabled so translucent panels do not render on top of bars incorrectly.
+- Axis mirror text was disabled where it produced unreadable mirrored labels.
+- Demo/test loading now supports batched performance runs.
 
-### Testing
+### Local files not recommended for this commit
 
-- `git apply --check patch\patches\T3DBarGraph_fix_duplicate_bars.patch` was attempted, but the patch file was malformed at line 89, so the same logic was implemented manually.
-- `git diff --check` completed with no whitespace errors; Git reported only the existing LF-to-CRLF working-copy warning for `U3DBarGraph.pas`.
-- Delphi/MSBuild was not available on PATH, so package/demo builds were not run.
+- `Test.dproj` has large RAD Studio auto-generated platform/deployment churn.
+- `Test.res` is a generated/binary resource update.
+- `security-audit-report.md` is a raw generated audit log with formatting issues.
+- `patch/` is the local task package, not library source.
 
-Suggested Delphi scenario:
+These files should be reviewed separately before deciding whether they belong in the public repository.
 
-```pascal
-BarGraph.Add(0, 0, 10, claRed);
-BarGraph.Add(0, 0, 10, claBlue);
-BarGraph.Add(0, 0, 15, claGreen);
-```
+## Testing
 
-Expected result:
-
-- Only one bar exists at `(0, 0)`.
-- The value is `15`.
-- The base color is `claGreen`.
-- No duplicate component name exception occurs.
+- User verified in RAD Studio that 50,000 bars load.
+- User verified that mesh bar clicks select bars after the picking fixes.
+- Transparency was iterated visually in RAD Studio screenshots.
+- `powershell -ExecutionPolicy Bypass -File patch\scripts\security-audit.ps1` was run.
+- Manual secret and generated-artifact searches were run.
+- `git diff --check` completed with no whitespace errors; Git reported only LF-to-CRLF working-copy warnings.
+- Command-line MSBuild was not available in this environment/license, so final Delphi builds must be run from RAD Studio.
 
 ## Remaining recommendations
 
 - Install and run `gitleaks detect --source . --no-git=false --redact --report-format json --report-path gitleaks-report.json`.
-- Review the generated/binary artifact list before deleting anything.
-- Update `.gitignore` after deciding which generated files should stay out of source control.
-- Run `msbuild T3DBarGraphPackage.dproj` and `msbuild T3DBarGraphDemo.dproj` in a Delphi/MSBuild environment.
+- Review and clean generated/binary artifacts before making the repository public.
+- Decide whether the public repo should include only the package/demo source or also the local performance test app.
+- Add or refine `.gitignore` after deciding which build outputs should stay out of source control.
+- Run a clean RAD Studio build for Win32/Win64 and the package project before publishing.

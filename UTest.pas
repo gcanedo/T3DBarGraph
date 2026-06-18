@@ -3,17 +3,38 @@ unit UTest;
 interface
 
 uses
-  System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
-  FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.Viewport3D,
+  System.SysUtils, System.Types, System.UITypes, System.Classes,
+  System.Diagnostics, System.Math, FMX.Types, FMX.Controls, FMX.Forms,
+  FMX.Graphics, FMX.Dialogs, FMX.Viewport3D, FMX.StdCtrls, FMX.Layouts,
   System.UIConsts, U3DBarGraph;
 
 type
   TForm1 = class(TForm)
     procedure FormCreate(Sender: TObject);
   private
-    { Private declarations }
+    FToolbar: TLayout;
+    FStatusLabel: TLabel;
+    FDetailLabel: TLabel;
+    FTimer: TTimer;
+    FWatch: TStopwatch;
+    FTotalBars: Integer;
+    FCurrentIndex: Integer;
+    FColCount: Integer;
+    FBatchSize: Integer;
+    FRunActive: Boolean;
+
+    procedure CreateToolbar;
+    procedure CreateGraph;
+    function CreateRunButton(const AText: string; ATotalBars: Integer; AX: Single): TButton;
+    procedure RunButtonClick(Sender: TObject);
+    procedure StopButtonClick(Sender: TObject);
+    procedure TimerTick(Sender: TObject);
+    procedure StartRun(ATotalBars: Integer);
+    procedure StopRun(const AReason: string);
+    procedure UpdateStatus(const AReason: string = '');
+    function BarValue(AIndex: Integer): Single;
+    function BarColor(AIndex: Integer): TAlphaColor;
   public
-    { Public declarations }
     BarGraph: TBarGraph;
   end;
 
@@ -26,45 +47,237 @@ implementation
 
 procedure TForm1.FormCreate(Sender: TObject);
 begin
+  Width := 1280;
+  Height := 800;
+
+  CreateToolbar;
+  CreateGraph;
+
+  FTimer := TTimer.Create(Self);
+  FTimer.Enabled := false;
+  FTimer.Interval := 16;
+  FTimer.OnTimer := TimerTick;
+
+  StartRun(100);
+end;
+
+procedure TForm1.CreateToolbar;
+var
+  Btn: TButton;
+begin
+  FToolbar := TLayout.Create(Self);
+  FToolbar.Parent := Self;
+  FToolbar.Align := TAlignLayout.Top;
+  FToolbar.Height := 104;
+  FToolbar.Padding.Left := 12;
+  FToolbar.Padding.Right := 12;
+  FToolbar.Padding.Top := 10;
+  FToolbar.Padding.Bottom := 8;
+
+  CreateRunButton('1k', 1000, 12);
+  CreateRunButton('5k', 5000, 84);
+  CreateRunButton('10k', 10000, 156);
+  CreateRunButton('50k', 50000, 236);
+
+  Btn := TButton.Create(Self);
+  Btn.Parent := FToolbar;
+  Btn.Position.X := 324;
+  Btn.Position.Y := 10;
+  Btn.Width := 80;
+  Btn.Height := 32;
+  Btn.Text := 'Stop';
+  Btn.OnClick := StopButtonClick;
+
+  FStatusLabel := TLabel.Create(Self);
+  FStatusLabel.Parent := FToolbar;
+  FStatusLabel.Position.X := 424;
+  FStatusLabel.Position.Y := 8;
+  FStatusLabel.Width := 780;
+  FStatusLabel.Height := 34;
+  FStatusLabel.Text := 'Ready';
+
+  FDetailLabel := TLabel.Create(Self);
+  FDetailLabel.Parent := FToolbar;
+  FDetailLabel.Position.X := 12;
+  FDetailLabel.Position.Y := 52;
+  FDetailLabel.Width := 1190;
+  FDetailLabel.Height := 40;
+  FDetailLabel.Text := 'Choose a dataset size to start a timed load.';
+end;
+
+procedure TForm1.CreateGraph;
+begin
+  if Assigned(BarGraph) then
+    FreeAndNil(BarGraph);
+
   BarGraph := TBarGraph.Create(Self);
   BarGraph.Parent := Self;
   BarGraph.Align := TAlignLayout.Client;
-
-
+  if Assigned(BarGraph.Stage) and Assigned(BarGraph.Stage.BarContainer) then
+    BarGraph.Stage.BarContainer.RenderMode := brMesh;
   BarGraph.Position.Point := PointF(0, 0);
-  BarGraph.Width := 1024;
-  BarGraph.Height := 768;
-  BarGraph.XLabel := 'SEASON';
-  BarGraph.YLabel := 'TIME PERIOD';
-  BarGraph.ZLabel := 'MEAN TEMPERATURE';
-
-  BarGraph.AddYLabel(0, '1987-1996');
-  BarGraph.AddYLabel(1, '1937-1946');
-  BarGraph.AddYLabel(2, '1887-1896');
-
-  BarGraph.AddXLabel(0, 'SPRING');
-  BarGraph.AddXLabel(1, 'SUMMER');
-  BarGraph.AddXLabel(2, 'AUTUMN');
-  BarGraph.AddXLabel(3, 'WINTER');
-
-  BarGraph.Add(0, 0, -15, claGreen);
-  BarGraph.Add(1, 0, 14, claPurple);
-  BarGraph.Add(2, 0, 14, claRed);
-  BarGraph.Add(0, 1, 25, claGreen);
-  BarGraph.Add(1, 1, 25, claPurple);
-  BarGraph.Add(2, 1, 25, claRed);
-  BarGraph.Add(0, 2, 10, claGreen);
-  BarGraph.Add(1, 2, 10, claPurple);
-  BarGraph.Add(2, 2, 10, claRed);
-  BarGraph.Add(0, 3, 5, claGreen);
-  BarGraph.Add(1, 3, 5, claPurple);
-  BarGraph.Add(2, 3, -5, claRed);
-
-  //BarGraph.Add(40, 40, 15, claRed);
-
+  BarGraph.XLabel := 'COLUMN';
+  BarGraph.YLabel := 'ROW';
+  BarGraph.ZLabel := 'VALUE';
   BarGraph.AutoScale := true;
+  BarGraph.NumTicks := 10;
 
+  BarGraph.PlaneOpacity := 0.75;
 
+  if Assigned(FToolbar) then
+    FToolbar.BringToFront;
+end;
+
+function TForm1.CreateRunButton(const AText: string; ATotalBars: Integer; AX: Single): TButton;
+begin
+  Result := TButton.Create(Self);
+  Result.Parent := FToolbar;
+  Result.Position.X := AX;
+  Result.Position.Y := 10;
+  Result.Width := 64;
+  Result.Height := 32;
+  Result.Text := AText;
+  Result.Tag := ATotalBars;
+  Result.OnClick := RunButtonClick;
+end;
+
+procedure TForm1.RunButtonClick(Sender: TObject);
+begin
+  if Sender is TButton then
+    StartRun(Integer((Sender as TButton).Tag));
+end;
+
+procedure TForm1.StopButtonClick(Sender: TObject);
+begin
+  StopRun('Stopped');
+end;
+
+procedure TForm1.StartRun(ATotalBars: Integer);
+const
+  LABEL_TARGET_COUNT = 10;
+var
+  RowCount: Integer;
+  LabelStep: Integer;
+  I: Integer;
+begin
+  if FRunActive then
+    StopRun('Restarted');
+
+  CreateGraph;
+
+  FTotalBars := ATotalBars;
+  FCurrentIndex := 0;
+  FColCount := Max(10, Ceil(Sqrt(FTotalBars)));
+  RowCount := Max(1, Ceil(FTotalBars/FColCount));
+  FBatchSize := Max(25, Min(500, FTotalBars div 50));
+  FRunActive := true;
+
+  BarGraph.BeginDataUpdate;
+  try
+    LabelStep := Max(1, FColCount div LABEL_TARGET_COUNT);
+    I := 0;
+    while I < FColCount do
+      begin
+        BarGraph.AddXLabel(I, Format('C%d', [I]));
+        Inc(I, LabelStep);
+      end;
+    BarGraph.AddXLabel(FColCount - 1, Format('C%d', [FColCount - 1]));
+
+    LabelStep := Max(1, RowCount div LABEL_TARGET_COUNT);
+    I := 0;
+    while I < RowCount do
+      begin
+        BarGraph.AddYLabel(I, Format('R%d', [I]));
+        Inc(I, LabelStep);
+      end;
+    BarGraph.AddYLabel(RowCount - 1, Format('R%d', [RowCount - 1]));
+  finally
+    BarGraph.EndDataUpdate;
+  end;
+
+  FWatch := TStopwatch.StartNew;
+  FTimer.Enabled := true;
+  UpdateStatus('Running');
+end;
+
+procedure TForm1.StopRun(const AReason: string);
+begin
+  if Assigned(FTimer) then
+    FTimer.Enabled := false;
+
+  if FRunActive then
+    FWatch.Stop;
+
+  FRunActive := false;
+  UpdateStatus(AReason);
+end;
+
+procedure TForm1.TimerTick(Sender: TObject);
+var
+  TargetIndex: Integer;
+  Row: Integer;
+  Col: Integer;
+begin
+  if not FRunActive then Exit;
+
+  TargetIndex := Min(FTotalBars, FCurrentIndex + FBatchSize);
+
+  BarGraph.BeginDataUpdate;
+  try
+    while FCurrentIndex < TargetIndex do
+      begin
+        Row := FCurrentIndex div FColCount;
+        Col := FCurrentIndex mod FColCount;
+        BarGraph.Add(Row, Col, BarValue(FCurrentIndex), BarColor(FCurrentIndex));
+        Inc(FCurrentIndex);
+      end;
+  finally
+    BarGraph.EndDataUpdate;
+  end;
+
+  if FCurrentIndex >= FTotalBars then
+    StopRun('Done')
+  else
+    UpdateStatus('Running');
+end;
+
+procedure TForm1.UpdateStatus(const AReason: string = '');
+var
+  ElapsedSec: Double;
+  BarsPerSec: Double;
+  PercentDone: Double;
+  RowCount: Integer;
+begin
+  if FTotalBars <= 0 then Exit;
+
+  ElapsedSec := Max(FWatch.Elapsed.TotalSeconds, 0.001);
+  BarsPerSec := FCurrentIndex/ElapsedSec;
+  PercentDone := 100*FCurrentIndex/FTotalBars;
+  RowCount := Max(1, Ceil(FTotalBars/FColCount));
+
+  FStatusLabel.Text := Format('%s: %d / %d bars (%.1f%%), %.2f sec, %.0f bars/sec',
+    [AReason, FCurrentIndex, FTotalBars, PercentDone, ElapsedSec, BarsPerSec]);
+
+  FDetailLabel.Text := Format('Render: TMesh | Pick: screen-space v2 | Columns: %d | Rows: %d | Batch size: %d | Timer: %d ms | Tip: compare 1k, 10k, and 50k to see scaling.',
+    [FColCount, RowCount, FBatchSize, FTimer.Interval]);
+end;
+
+function TForm1.BarValue(AIndex: Integer): Single;
+begin
+  Result := ((AIndex*37) mod 120) - 60;
+end;
+
+function TForm1.BarColor(AIndex: Integer): TAlphaColor;
+begin
+  case AIndex mod 6 of
+    0: Result := claGreen;
+    1: Result := claPurple;
+    2: Result := claRed;
+    3: Result := claBlue;
+    4: Result := claYellow;
+  else
+    Result := claAqua;
+  end;
 end;
 
 end.

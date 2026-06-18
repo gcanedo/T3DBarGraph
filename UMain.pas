@@ -145,27 +145,32 @@ begin
   BarGraph.YLabel := 'TIME PERIOD';
   BarGraph.ZLabel := 'MEAN TEMPERATURE';
 
-  BarGraph.AddYLabel(0, '1987-1996');
-  BarGraph.AddYLabel(1, '1937-1946');
-  BarGraph.AddYLabel(2, '1887-1896');
+  BarGraph.BeginDataUpdate;
+  try
+    BarGraph.AddYLabel(0, '1987-1996');
+    BarGraph.AddYLabel(1, '1937-1946');
+    BarGraph.AddYLabel(2, '1887-1896');
 
-  BarGraph.AddXLabel(0, 'SPRING');
-  BarGraph.AddXLabel(1, 'SUMMER');
-  BarGraph.AddXLabel(2, 'AUTUMN');
-  BarGraph.AddXLabel(3, 'WINTER');
+    BarGraph.AddXLabel(0, 'SPRING');
+    BarGraph.AddXLabel(1, 'SUMMER');
+    BarGraph.AddXLabel(2, 'AUTUMN');
+    BarGraph.AddXLabel(3, 'WINTER');
 
-  BarGraph.Add(0, 0, -15, claGreen);
-  BarGraph.Add(1, 0, 14, claPurple);
-  BarGraph.Add(2, 0, 14, claRed);
-  BarGraph.Add(0, 1, 25, claGreen);
-  BarGraph.Add(1, 1, 25, claPurple);
-  BarGraph.Add(2, 1, 25, claRed);
-  BarGraph.Add(0, 2, 10, claGreen);
-  BarGraph.Add(1, 2, 10, claPurple);
-  BarGraph.Add(2, 2, 10, claRed);
-  BarGraph.Add(0, 3, 5, claGreen);
-  BarGraph.Add(1, 3, 5, claPurple);
-  BarGraph.Add(2, 3, -5, claRed);
+    BarGraph.Add(0, 0, -15, claGreen);
+    BarGraph.Add(1, 0, 14, claPurple);
+    BarGraph.Add(2, 0, 14, claRed);
+    BarGraph.Add(0, 1, 25, claGreen);
+    BarGraph.Add(1, 1, 25, claPurple);
+    BarGraph.Add(2, 1, 25, claRed);
+    BarGraph.Add(0, 2, 10, claGreen);
+    BarGraph.Add(1, 2, 10, claPurple);
+    BarGraph.Add(2, 2, 10, claRed);
+    BarGraph.Add(0, 3, 5, claGreen);
+    BarGraph.Add(1, 3, 5, claPurple);
+    BarGraph.Add(2, 3, -5, claRed);
+  finally
+    BarGraph.EndDataUpdate;
+  end;
 
   InitComps;
 end;

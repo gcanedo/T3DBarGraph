@@ -5,7 +5,8 @@ interface
     FMX.Viewport3D, System.Classes, FMX.Objects3D, Math, System.SysUtils,
     FMX.MaterialSources, System.UIConsts, FMX.Types3D, System.Math.Vectors,
     System.UITypes, FMX.Controls3D, System.Types, FMX.Ani, FMX.Layers3D,
-    FMX.Graphics, FMX.Types, FMX.Objects, FMX.Dialogs, FMX.StdCtrls, FMX.Menus;
+    FMX.Graphics, FMX.Types, FMX.Objects, FMX.Dialogs, FMX.StdCtrls, FMX.Menus,
+    FMX.Forms, System.Generics.Collections;
 
   const
 
@@ -39,7 +40,7 @@ interface
     ///// XZ and YZ Planes /////
     XZPLANE_YZPLANE_DEFAULT_COLOR = claWhite;
     PLANE_DEPTH = 0.001;
-    PLANE_OPACITY = 1;
+    PLANE_OPACITY = 0.5;
 
     ///// XY PLANE  ///////
     XYPLANE_BACKGROUNDCOLOR = claAntiquewhite;
@@ -56,12 +57,22 @@ interface
     ZAXIS_DEFAULT_NUMTICKS = 10;
     AXIS_DEFAULT_ZMAX = 20;
     AXIS_DEFAULT_ZMIN = -20;
+    MIN_AXIS_RANGE = 1.0;
+    MESH_RENDER_THRESHOLD = 300;
+    MESH_BARS_PER_CHUNK = 2500;
+    MESH_VERTICES_PER_BAR = 24;
+    MESH_INDICES_PER_BAR = 36;
+    MESH_TRIANGLES_PER_BAR = 12;
+    MIN_BAR_PICK_HEIGHT = 0.001;
+    SELECTION_BAR_PAD = 0.025;
 
     //// GENERAL SETTINGS////////
     ROTATION_STEP = 0.3;
     TRANSLATION_STEP = 0.02;
 
     DEFAULT_RESOLUTION = 150;
+    MAX_TEXT_LAYER_BITMAP_SIZE = 2048;
+    MIN_TEXT_LAYER_RESOLUTION = 1;
     ZOOM_STEP = 0.01;
     CAMERA_MAX_Z = 50;
     CAMERA_MIN_Z = -102;
@@ -97,6 +108,7 @@ interface
       BarGraphGridColor: TAlphaColor;
       BarGraphFontColor: TAlphaColor;
       XZPlaneYZPlaneBackgroundColor: TAlphaColor;
+      PlaneOpacity: Single;
       BarColor: TAlphaColor;
       BarSelectedColor: TAlphaColor;
       LegendBackgroundColor: TAlphaColor;
@@ -114,6 +126,14 @@ interface
     TInfoStr = Array of String;
 
     TOnUpdateEvent = procedure of object;
+
+    TBarRenderMode = (brAuto, brCubes, brMesh);
+
+    TBarData = record
+      row, col: Integer;
+      val: Single;
+      color: TAlphaColor;
+    end;
 
     TInfoCell = record
       pos: Integer;
@@ -154,10 +174,34 @@ interface
       constructor Create(AOwner: TComponent); override;
     end;
 
+    TTransparentRectangle3D = class(TRectangle3D)
+      protected
+        procedure Render; override;
+    end;
+
+    TAlphaPanelRectangle3D = class(TTransparentRectangle3D)
+      private
+        FPanelColor: TAlphaColor;
+        FPanelOpacity: Single;
+      protected
+        procedure Render; override;
+      public
+        procedure SetPanelFill(AColor: TAlphaColor; AOpacity: Single);
+    end;
+
+    TZTestTextLayer3D = class(TTextLayer3D)
+      protected
+        procedure Render; override;
+    end;
+
 
     TBar = class(TCube)
       private
+        FMaterial: TLightMaterialSource;
+        FRenderBody: Boolean;
         procedure SetPosition(RowCount, ColCount: Integer);
+      protected
+        procedure Render; override;
       public
         row, col: Integer;
         val: Single;
@@ -190,9 +234,42 @@ interface
 
     TBarContainer = class(TDummy)
       private
+        FBarIndex: TDictionary<Int64, TBar>;
+        FDataIndex: TDictionary<Int64, Integer>;
+        FBarData: TList<TBarData>;
+        FMeshGroups: TObjectList<TMesh>;
+        FMeshDataIndexes: TObjectDictionary<TMesh, TList<Integer>>;
+        FMeshSelectionBar: TBar;
+        FRenderMode: TBarRenderMode;
+        FMeshDirty: Boolean;
+        FUpdateLock: Integer;
+        FNeedsLayoutUpdate: Boolean;
+        FNeedsCameraUpdate: Boolean;
+        function BarKey(row, col: Integer): Int64;
+        function ActiveRenderMode: TBarRenderMode;
+        function UpsertBarData(row, col: Integer; Value: Single; cl: TAlphaColor; out OldValue: Single; out ExistingBar: Boolean): Integer;
+        procedure BeginDataUpdate;
+        procedure EndDataUpdate;
+        procedure RequestLayoutUpdate(UpdateCamera: Boolean);
+        procedure ApplyPendingLayout;
+        procedure ApplyRenderMode;
+        procedure SetRenderMode(val: TBarRenderMode);
+        procedure SetCubeVisibility(Visible: Boolean);
+        procedure ClearMeshGroups;
+        procedure RebuildMesh;
+        procedure ClearMeshSelection;
+        procedure GetBarBox(const AData: TBarData; out Center: TPoint3D; out BarHeight: Single);
+        function TryPickMeshBarAtScreen(const P: TPointF; out DataIndex: Integer): Boolean;
+        function TryPickMeshCell(const RayPos, RayDir: TPoint3D; out DataIndex: Integer; out Intersection: TPoint3D): Boolean;
+        function TryPickMeshBar(const RayPos, RayDir: TPoint3D; out DataIndex: Integer; out Intersection: TPoint3D): Boolean;
+        function TryPickMeshTriangles(AMesh: TMesh; const RayPos, RayDir: TPoint3D; out DataIndex: Integer; out Intersection: TPoint3D): Boolean;
+        function SelectMeshDataIndex(DataIndex: Integer): Boolean;
+        procedure BuildMeshChunk(AColor: TAlphaColor; const AIndexes: TList<Integer>; AStart, ACount: Integer);
+        procedure AddMeshBar(AMesh: TMesh; const AData: TBarData; AVertexBase, AIndexBase: Integer);
         procedure SetRowCount(val: Integer);
         procedure SetColCount(val: Integer);
         procedure RecalculateDataBounds;
+        procedure PositionLegendForBar(bar: TBar);
       public
         FOnUpdate: TOnUpdateEvent;
         FRowCount, FColCount: Integer;
@@ -211,8 +288,13 @@ interface
         procedure BarMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single; RayPos, RayDir: TVector3D);
         procedure RotateLegend;
         constructor Create(AOwner: TComponent); override;
+        destructor Destroy; override;
         procedure Add(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
         procedure CreateBar(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
+        function SelectMeshBarAtScreen(const P: TPointF): Boolean;
+        function SelectMeshBarFromRay(const RayPos, RayDir: TPoint3D): Boolean;
+        function SelectMeshBarFromMeshRay(AMesh: TMesh; const RayPos, RayDir: TPoint3D): Boolean;
+        property RenderMode: TBarRenderMode read FRenderMode write SetRenderMode;
         property RowCount: Integer read FRowCount write SetRowCount;
         property ColCount: Integer read FColCount write SetColCount;
         procedure UpdatePositions;
@@ -221,7 +303,7 @@ interface
         function IndexOf(row, col: Integer): TBar;
     end;
 
-    TSticker = class(TTextLayer3D)
+    TSticker = class(TZTestTextLayer3D)
       private
         info: TInfoAxis;
       public
@@ -237,10 +319,15 @@ interface
       public
         Sticker: TSticker;
         Lb: TTextLayer3D;
+        Title3D: TText3D;
+        ValueTexts3D: TObjectList<TText3D>;
+        TextMaterial: TLightMaterialSource;
         Stg: TMainContainer;
         constructor Create(AOwner: TComponent); override;
+        destructor Destroy; override;
         procedure Resize;
         procedure Invalidate;
+        procedure RebuildText3D;
     end;
 
     TAxisYPanel = class(TDummy)
@@ -262,7 +349,7 @@ interface
     end;
 
 
-    TPanelTicks = class(TRectangle3D)
+    TPanelTicks = class(TAlphaPanelRectangle3D)
       public
         Front, ZLabelTop, ZLabelBottom: TTextLayer3D;
         Stg: TMainContainer;
@@ -297,6 +384,7 @@ interface
         procedure ResizeBordersL(Q: TRectangle3D);
 
         procedure SetColor;
+        procedure ApplyPlaneOpacity;
       public
         FGlobal: TGlobalData;
 
@@ -340,7 +428,11 @@ interface
       private
         dir: Integer;
         FDown: TPointF;
+        FClickStart: TPointF;
+        FDragMoved: Boolean;
         PopupMenu: TPopupMenu;
+        FUpdateLock: Integer;
+        FNeedsInvalidate: Boolean;
 
         function GetZMin: Single;
         procedure SetZMin(val: Single);
@@ -360,6 +452,8 @@ interface
         procedure ViewportClick(Sender: TObject);
         procedure InitMouseEvents;
         procedure SetPositionLights;
+        procedure RequestInvalidate;
+        function TrySelectMeshAt(const P: TPointF): Boolean;
 
 
         procedure SetZLabel(val: String);
@@ -396,6 +490,8 @@ interface
         procedure TurnLights(Val: Boolean);
         procedure UpdateCameraPosition;
         procedure Add(row, col: Integer; Value: Single; cl: TAlphaColor = 0);
+        procedure BeginDataUpdate;
+        procedure EndDataUpdate;
 
         procedure ViewNegativePlane;
         procedure ViewPositivePlane;
@@ -410,6 +506,8 @@ interface
         function GetXZandYZPlaneColor: TAlphaColor;
         procedure SetXZandYZPlaneColor(val: TAlphaColor);
 
+        function GetPlaneOpacity: Single;
+        procedure SetPlaneOpacity(val: Single);
 
         function GetGridColor: TAlphaColor;
         procedure SetGridColor(val: TAlphaColor);
@@ -456,6 +554,7 @@ interface
         property ZMax: Single read GetZMax write SetZMax;
         property GridColor: TAlphaColor read GetGridColor write SetGridColor;
         property XYPlaneColor: TAlphaColor read GetXYPlaneColor write SetXYPlaneColor;
+        property PlaneOpacity: Single read GetPlaneOpacity write SetPlaneOpacity;
         property FontColor: TAlphaColor read GetBarGraphFontColor write SetBarGraphFontColor;
         property XZandYZPlaneColor: TAlphaColor read GetXZandYZPlaneColor write SetXZandYZPlaneColor;
         property LegendFontColor: TAlphaColor read GetLegendFontColor write SetLegendFontColor;
@@ -480,6 +579,21 @@ begin
   Result := Format('%g', [StrToFloat(Result)]);
 end;
 
+function SafeTextResolution(AWidth, AHeight: Single): Integer;
+var
+  MaxDimension: Single;
+  ProposedResolution: Single;
+begin
+  MaxDimension := Max(Abs(AWidth), Abs(AHeight));
+  if SameValue(MaxDimension, 0) then
+    Exit(DEFAULT_RESOLUTION);
+
+  ProposedResolution := MAX_TEXT_LAYER_BITMAP_SIZE/MaxDimension;
+  Result := Integer(Trunc(ProposedResolution));
+  Result := Max(MIN_TEXT_LAYER_RESOLUTION, Result);
+  Result := Min(DEFAULT_RESOLUTION, Result);
+end;
+
 constructor TGlobalData.Create;
 begin
   LegendFontColor := LEGEND_FONT_COLOR;
@@ -489,6 +603,7 @@ begin
 
   XYPlaneBackgroundColor := XYPLANE_BACKGROUNDCOLOR;
   XZPlaneYZPlaneBackgroundColor := XZPLANE_YZPLANE_DEFAULT_COLOR;
+  PlaneOpacity := PLANE_OPACITY;
 
   BarGraphGridColor := BARGRAPH_DEFAULT_GRID_COLOR;
   BarGraphFontColor := BARGRAPH_FONT_COLOR;
@@ -501,30 +616,95 @@ begin
   AutoScale := false;
 end;
 
+procedure TTransparentRectangle3D.Render;
+var
+  M: TMatrix3D;
+begin
+  // Keep TRectangle3D's local coordinate system without its opaque fill.
+  M := TMatrix3D.Identity;
+  M.m41 := -Width/2;
+  M.m42 := -Height/2;
+  Context.SetMatrix(M * AbsoluteMatrix);
+end;
+
+procedure TAlphaPanelRectangle3D.Render;
+begin
+  inherited;
+
+  if FPanelOpacity <= 0 then Exit;
+
+  Context.SetContextState(TContextState.csAlphaBlendOn);
+  Context.SetContextState(TContextState.csZTestOn);
+  if FPanelOpacity >= 1 then
+    Context.SetContextState(TContextState.csZWriteOn)
+  else
+    Context.SetContextState(TContextState.csZWriteOff);
+
+  Context.FillCube(TPoint3D.Create(Width/2, Height/2, 0),
+    TPoint3D.Create(Width, Height, Depth), FPanelOpacity, FPanelColor);
+end;
+
+procedure TAlphaPanelRectangle3D.SetPanelFill(AColor: TAlphaColor; AOpacity: Single);
+begin
+  FPanelColor := AColor;
+  FPanelOpacity := EnsureRange(AOpacity, 0, 1);
+  Repaint;
+end;
+
+procedure TZTestTextLayer3D.Render;
+begin
+  Context.SetContextState(TContextState.csZTestOn);
+  if ZWrite then
+    Context.SetContextState(TContextState.csZWriteOn)
+  else
+    Context.SetContextState(TContextState.csZWriteOff);
+  inherited;
+end;
+
 function TGlobalData.GetZMin: Single;
 begin
   if (AutoScale) and (DataMin <> MaxSingle) then
-    Result := DataMin
+    begin
+      if SameValue(DataMin, DataMax) then
+        Result := DataMin - MIN_AXIS_RANGE/2
+      else
+        Result := DataMin;
+    end
   else
     Result := FZMin;
 end;
 
 procedure TGlobalData.SetZMin(val: Single);
 begin
-  if val <> FZMin then FZMin := val;
+  if val <> FZMin then
+    begin
+      FZMin := val;
+      if FZMin >= FZMax then
+        FZMax := FZMin + MIN_AXIS_RANGE;
+    end;
 end;
 
 function TGlobalData.GetZMax: Single;
 begin
   if (AutoScale) and (DataMax <> MinSingle) then
-    Result := DataMax
+    begin
+      if SameValue(DataMin, DataMax) then
+        Result := DataMax + MIN_AXIS_RANGE/2
+      else
+        Result := DataMax;
+    end
   else
     Result := FZMax;
 end;
 
 procedure TGlobalData.SetZMax(val: Single);
 begin
-  if val <> FZMax then FZMax := val;
+  if val <> FZMax then
+    begin
+      FZMax := val;
+      if FZMax <= FZMin then
+        FZMin := FZMax - MIN_AXIS_RANGE;
+    end;
 end;
 
 procedure TLegend3D.Invalidate;
@@ -727,11 +907,11 @@ begin
   TopSticker.Parent := Self;
   Width := TopSticker.Width;
 
-  Base := TRectangle3D.Create(Self);
+  Base := TAlphaPanelRectangle3D.Create(Self);
   Base.Width := TopSticker.Width;
   Base.Parent := Self;
   ColorPlane := TColorMaterialSource.Create(Self);
-  ColorPlane.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY);
+  ColorPlane.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, Stg.global.PlaneOpacity);
 
 
 
@@ -739,7 +919,7 @@ begin
   Base.MaterialShaftSource := ColorPlane;
   Base.MaterialSource := ColorPlane;
   Base.HitTest := false;
-  Base.Opacity := PLANE_OPACITY;
+  Base.Visible := false;
 
 
   tag := 1;
@@ -749,6 +929,7 @@ begin
   BottomSticker.Sticker.RotationAngle.Y := 0;
   BottomSticker.Lb.RotationAngle.Y := 0;
   BottomSticker.Parent := Self;
+  BottomSticker.Visible := false;
 end;
 
 procedure TAxisXPanel.Resize;
@@ -762,6 +943,7 @@ begin
   BottomSticker.Height := Width;
   BottomSticker.Position.Y := Height/2 + 0.001;
   BottomSticker.Resize;
+  BottomSticker.Visible := false;
 end;
 
 constructor TAxisYPanel.Create(AOwner: TComponent);
@@ -773,20 +955,22 @@ begin
   tag := 1;
   TopSticker := TGroupSticker.Create(Self);
   TopSticker.RotationAngle.X := -90;
+  TopSticker.Sticker.RotationAngle.Y := 0;
+  TopSticker.Lb.RotationAngle.Y := 0;
   TopSticker.Parent := Self;
   Width := TopSticker.Width;
 
-  Base := TRectangle3D.Create(Self);
+  Base := TAlphaPanelRectangle3D.Create(Self);
   Base.Width := TopSticker.Width;
   Base.Parent := Self;
   ColorPlane := TColorMaterialSource.Create(Self);
-  ColorPlane.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, 1);
+  ColorPlane.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, Stg.global.PlaneOpacity);
 
   Base.MaterialBackSource := ColorPlane;
   Base.MaterialShaftSource := ColorPlane;
   Base.MaterialSource := ColorPlane;
   Base.HitTest := false;
-  Base.Opacity := 0;//PLANE_OPACITY;
+  Base.Visible := false;
 
   tag := -1;
   BottomSticker := TGroupSticker.Create(Self);
@@ -794,6 +978,7 @@ begin
   BottomSticker.Sticker.RotationAngle.Y := 180;
   BottomSticker.Lb.RotationAngle.Y := 180;
   BottomSticker.Parent := Self;
+  BottomSticker.Visible := false;
 end;
 
 procedure TAxisYPanel.Resize;
@@ -808,12 +993,57 @@ begin
   BottomSticker.Height := Depth;
   BottomSticker.Position.Y := Height/2 + 0.001;
   BottomSticker.Resize;
+  BottomSticker.Visible := false;
 end;
 
 procedure TGroupSticker.Invalidate;
+var
+  PanelOpacity: Single;
+  UseFillAlpha: Boolean;
 begin
-  Lb.Fill.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY);
+  PanelOpacity := Stg.global.PlaneOpacity;
+  UseFillAlpha := false;
+
+  Lb.Visible := true;
+  Lb.Transparency := true;
+  Lb.ZWrite := PanelOpacity >= 1;
+  Lb.TwoSide := true;
+  if UseFillAlpha then
+    begin
+      Lb.Opacity := 1;
+      Lb.Fill.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PanelOpacity);
+      Lb.Fill.Kind := TBrushKind.Solid;
+    end
+  else
+    begin
+      Lb.Opacity := PanelOpacity;
+      Lb.Fill.Color := Stg.global.XYPlaneBackgroundColor;
+      Lb.Fill.Kind := TBrushKind.Solid;
+    end;
   Lb.Color := Stg.global.BarGraphFontColor;
+
+  if Assigned(Sticker) then
+    begin
+      Sticker.Visible := true;
+      Sticker.Transparency := true;
+      Sticker.ZWrite := Lb.ZWrite;
+      Sticker.TwoSide := true;
+      if UseFillAlpha then
+        begin
+          Sticker.Opacity := 1;
+          Sticker.Fill.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PanelOpacity);
+          Sticker.Fill.Kind := TBrushKind.Solid;
+        end
+      else
+        begin
+          Sticker.Opacity := PanelOpacity;
+          Sticker.Fill.Color := Stg.global.XYPlaneBackgroundColor;
+          Sticker.Fill.Kind := TBrushKind.Solid;
+        end;
+      Sticker.Invalidate;
+    end;
+
+  RebuildText3D;
 end;
 
 constructor TGroupSticker.Create(AOwner: TComponent);
@@ -824,19 +1054,24 @@ begin
   Tag := AOwner.Tag;
   Width := SIZE_PANEL_TICKS;
 
-  Lb := TTextLayer3D.Create(Self);
+  Lb := TZTestTextLayer3D.Create(Self);
   Lb.Text := '';
   Lb.Height := SIZE_LABEL;
   Lb.Parent := Self;
   Lb.HitTest := false;
+  Lb.Visible := true;
+  Lb.Transparency := true;
+  Lb.ZWrite := Stg.global.PlaneOpacity >= 1;
+  Lb.TwoSide := true;
   (Lb.Children[0] as TText).HitTest := false;
 
 
   Lb.Resolution := DEFAULT_RESOLUTION;
   Lb.RotationAngle.Z := -90;
+  Lb.Opacity := Stg.global.PlaneOpacity;
   Lb.Color := Stg.global.BarGraphFontColor;
   Lb.Fill.Kind := TBrushKind.Solid;
-  Lb.Fill.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY);
+  Lb.Fill.Color := Stg.global.XYPlaneBackgroundColor;
 
   Lb.Font.Size := Lb.Resolution*PANEL_PAD;
   Lb.Position.X := Width/2 - Lb.Height/2;
@@ -846,17 +1081,170 @@ begin
   Sticker.Parent := Self;
   Sticker.Position.X := -Width/2 + Sticker.Width/2;
   Sticker.HitTest := false;
+  Sticker.Visible := true;
+  Sticker.Transparency := true;
+  Sticker.ZWrite := Stg.global.PlaneOpacity >= 1;
+  Sticker.TwoSide := true;
+
+  TextMaterial := TLightMaterialSource.Create(Self);
+  Title3D := TText3D.Create(Self);
+  Title3D.Parent := Self;
+  Title3D.Visible := false;
+  Title3D.HitTest := false;
+  Title3D.Depth := 0.001;
+  Title3D.WordWrap := false;
+  Title3D.Stretch := true;
+  Title3D.HorzTextAlign := TTextAlign.Center;
+  Title3D.VertTextAlign := TTextAlign.Center;
+  Title3D.MaterialBackSource := TextMaterial;
+  Title3D.MaterialShaftSource := TextMaterial;
+  Title3D.MaterialSource := TextMaterial;
+
+  ValueTexts3D := TObjectList<TText3D>.Create(true);
 
   HitTest := false;
 
 end;
 
-procedure TGroupSticker.Resize;
+destructor TGroupSticker.Destroy;
 begin
+  ValueTexts3D.Free;
+  inherited;
+end;
+
+procedure TGroupSticker.Resize;
+var
+  PanelOpacity: Single;
+  UseFillAlpha: Boolean;
+begin
+  PanelOpacity := Stg.global.PlaneOpacity;
+  UseFillAlpha := false;
+
+  Lb.Visible := true;
+  Lb.Transparency := true;
+  Lb.ZWrite := PanelOpacity >= 1;
+  Lb.TwoSide := true;
+  if UseFillAlpha then
+    begin
+      Lb.Opacity := 1;
+      Lb.Fill.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PanelOpacity);
+      Lb.Fill.Kind := TBrushKind.Solid;
+    end
+  else
+    begin
+      Lb.Opacity := PanelOpacity;
+      Lb.Fill.Color := Stg.global.XYPlaneBackgroundColor;
+      Lb.Fill.Kind := TBrushKind.Solid;
+    end;
+  Lb.Resolution := SafeTextResolution(Height, Lb.Height);
+  Lb.Font.Size := Lb.Resolution*PANEL_PAD;
   Lb.Width := Height;
   Lb.Invalidate;
+
+  Sticker.Visible := true;
+  Sticker.Transparency := true;
+  Sticker.ZWrite := PanelOpacity >= 1;
+  Sticker.TwoSide := true;
+  if UseFillAlpha then
+    begin
+      Sticker.Opacity := 1;
+      Sticker.Fill.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PanelOpacity);
+      Sticker.Fill.Kind := TBrushKind.Solid;
+    end
+  else
+    begin
+      Sticker.Opacity := PanelOpacity;
+      Sticker.Fill.Color := Stg.global.XYPlaneBackgroundColor;
+      Sticker.Fill.Kind := TBrushKind.Solid;
+    end;
+  Sticker.Resolution := SafeTextResolution(Sticker.Width, Height);
   Sticker.Height := Height;
   Sticker.Invalidate;
+
+  RebuildText3D;
+end;
+
+procedure TGroupSticker.RebuildText3D;
+var
+  I: Integer;
+  Info: TInfoAxis;
+  BlockHeight, TextHeight, TextWidth, TextX, TextY: Single;
+  AxisText: TText3D;
+begin
+  if Assigned(Title3D) then
+    Title3D.Visible := false;
+  if Assigned(ValueTexts3D) then
+    ValueTexts3D.Clear;
+  Exit;
+
+  if not Assigned(TextMaterial) then Exit;
+
+  TextMaterial.Ambient := Stg.global.BarGraphFontColor;
+  TextMaterial.Diffuse := Stg.global.BarGraphFontColor;
+  TextMaterial.Emissive := Stg.global.BarGraphFontColor;
+  TextMaterial.Specular := Stg.global.BarGraphFontColor;
+
+  if Assigned(Title3D) then
+    begin
+      Title3D.Text := Lb.Text;
+      Title3D.Visible := Lb.Text <> '';
+      Title3D.Width := Max(Height, 0.001);
+      Title3D.Height := PANEL_PAD;
+      Title3D.Position.X := Width/2 - SIZE_LABEL/2;
+      Title3D.Position.Y := 0;
+      Title3D.Position.Z := 0.002;
+      Title3D.RotationAngle.Z := -90;
+      Title3D.RotationAngle.Y := Lb.RotationAngle.Y;
+      Title3D.Font.Size := 12;
+    end;
+
+  if not Assigned(ValueTexts3D) then Exit;
+  ValueTexts3D.Clear;
+
+  if (not Assigned(Sticker)) or (not Assigned(Sticker.info)) or
+    (Sticker.info.blockCount <= 0) then Exit;
+
+  Info := Sticker.info;
+  BlockHeight := Height/Info.blockCount;
+  TextHeight := Min(Max(BlockHeight*0.18, PANEL_PAD*0.45), PANEL_PAD*0.90);
+  TextWidth := Max(Sticker.Width - WIDTH_LINE_TICK - GAP_LINE_NUMBER, 0.001);
+
+  for I := 0 to Length(Info.blocks) - 1 do
+    begin
+      AxisText := TText3D.Create(Self);
+      AxisText.Parent := Self;
+      AxisText.HitTest := false;
+      AxisText.Depth := 0.001;
+      AxisText.WordWrap := false;
+      AxisText.Stretch := true;
+      AxisText.Width := TextWidth;
+      AxisText.Height := TextHeight;
+      AxisText.Text := Info.blocks[I].Text;
+      AxisText.Font.Size := 12;
+      AxisText.MaterialBackSource := TextMaterial;
+      AxisText.MaterialShaftSource := TextMaterial;
+      AxisText.MaterialSource := TextMaterial;
+      AxisText.RotationAngle.Y := Sticker.RotationAngle.Y;
+      AxisText.Position.Z := 0.002;
+
+      if Tag = 1 then
+        begin
+          TextX := -Width/2 + WIDTH_LINE_TICK + GAP_LINE_NUMBER + TextWidth/2;
+          AxisText.HorzTextAlign := TTextAlign.Leading;
+        end
+      else
+        begin
+          TextX := -Width/2 + TextWidth/2;
+          AxisText.HorzTextAlign := TTextAlign.Trailing;
+        end;
+
+      TextY := -Height/2 + BlockHeight*(Info.blocks[I].pos + 0.5);
+      AxisText.Position.X := TextX;
+      AxisText.Position.Y := TextY;
+      AxisText.VertTextAlign := TTextAlign.Center;
+
+      ValueTexts3D.Add(AxisText);
+    end;
 end;
 
 procedure TSticker.SetInfo(val: TInfoAxis);
@@ -866,6 +1254,8 @@ begin
     OnPaint := Paint
   else
     OnPaint := PaintR;
+  if Parent is TGroupSticker then
+    TGroupSticker(Parent).RebuildText3D;
 end;
 
 procedure TSticker.Paint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
@@ -877,7 +1267,6 @@ var
   b: TInfoCell;
   Flags: TFillTextFlags;
 begin
-  Canvas.Clear(MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY));
   Canvas.Font.Size := (0.1*Resolution);
 
   PxHeightBlock := ARect.Height/info.blockCount;
@@ -916,7 +1305,6 @@ var
   Flags: TFillTextFlags;
 begin
 
-  Canvas.Clear(MakeColor(Stg.global.XYPlaneBackgroundColor, PLANE_OPACITY));
   Canvas.Font.Size := (0.1*Resolution);
 
   PxHeightBlock := ARect.Height/info.blockCount;
@@ -953,6 +1341,12 @@ begin
   tag := AOwner.Tag;
   HitTest := false;
   Resolution := DEFAULT_RESOLUTION;
+  Opacity := Stg.global.PlaneOpacity;
+  Transparency := true;
+  ZWrite := Stg.global.PlaneOpacity >= 1;
+  TwoSide := true;
+  Fill.Kind := TBrushKind.Solid;
+  Fill.Color := Stg.global.XYPlaneBackgroundColor;
 end;
 
 constructor TPanelTicks.Create(AOwner: TComponent);
@@ -966,16 +1360,18 @@ begin
 
   Parent := Stg;
   HitTest := false;
-  Opacity := PLANE_OPACITY;
+  Opacity := 1;
+  ZWrite := Stg.global.PlaneOpacity >= 1;
+  SetPanelFill(Stg.global.XZPlaneYZPlaneBackgroundColor, Stg.global.PlaneOpacity);
 
-  Front := TTextLayer3D.Create(Self);
+  Front := TZTestTextLayer3D.Create(Self);
   Front.Parent := Self;
   Front.Text := '';
   Front.HitTest := false;
   Front.DeleteChildren;
   Front.Resolution := DEFAULT_RESOLUTION;
 
-  ZLabelTop := TTextLayer3D.Create(Self);
+  ZLabelTop := TZTestTextLayer3D.Create(Self);
   ZLabelTop.Parent := Self;
   ZLabelTop.Text := Stg.FZLabel;
   ZLabelTop.HitTest := false;
@@ -988,7 +1384,7 @@ begin
   ZlabelTop.Font.Size := ZLabelTop.Resolution*PANEL_PAD;
 
 
-  ZLabelBottom := TTextLayer3D.Create(Self);
+  ZLabelBottom := TZTestTextLayer3D.Create(Self);
   ZLabelBottom.Parent := Self;
   ZLabelBottom.Text := Stg.FZLabel;
   ZLabelBottom.HitTest := false;
@@ -1161,31 +1557,43 @@ begin
 end;
 
 procedure TPanelTicks.SetPosition(RefPlane: TRectangle3D);
+var
+  FrontWidth, FrontHeight: Single;
+  ZTopWidth, ZBottomWidth, ZLabelHeight: Single;
 begin
   Width := SIZE_PANEL_TICKS;
   Height := RefPlane.Height + 2*PANEL_PAD;
   Depth := RefPlane.Depth;
   Position.Point := RefPlane.Position.Point + TPoint3D.Create(RefPlane.Width/2 + Width/2, 0, 0);
 
-  Front.Width := Width*(1 - SIZE_LABEL);
-  Front.Height := Height;
+  FrontWidth := Width*(1 - SIZE_LABEL);
+  FrontHeight := Height;
+  Front.Resolution := SafeTextResolution(FrontWidth, FrontHeight);
+  Front.Width := FrontWidth;
+  Front.Height := FrontHeight;
   Front.Position.Point := TPoint3D.Create(-Width/2 + Front.Width/2, 0, -Depth/2 - 0.001);
 
-  ZLabelTop.Text := Stg.FZLabel;
-  ZLabelTop.Width := Stg.XZPlane.Height/2 + Stg.XYPlane.Position.Y;
-  ZLabelTop.Visible := ZLabelTop.Width > 0;
+  ZTopWidth := Stg.XZPlane.Height/2 + Stg.XYPlane.Position.Y;
+  ZBottomWidth := Stg.XZPlane.Height - ZTopWidth;
+  ZLabelHeight := Width - Front.Width;
 
-  ZLabelTop.Height := Width - Front.Width;
+  ZLabelTop.Text := Stg.FZLabel;
+  ZLabelTop.Resolution := SafeTextResolution(ZTopWidth, ZLabelHeight);
+  ZLabelTop.Font.Size := ZLabelTop.Resolution*PANEL_PAD;
+  ZLabelTop.Width := ZTopWidth;
+  ZLabelTop.Visible := ZLabelTop.Width > 0;
+  ZLabelTop.Height := ZLabelHeight;
   ZLabelTop.Position.Point := Front.Position.Point +
 
   TPoint3D.Create(Front.Width/2 + ZLabelTop.Height/2, -RefPlane.Height/2 + ZLabelTop.Width/2, 0);
   //ZLabelTop.OnPaint := TempPaint;
 
   ZLabelBottom.Text := Stg.FZLabel;
-  ZLabelBottom.Width := Stg.XZPlane.Height - ZLabelTop.Width;
+  ZLabelBottom.Resolution := SafeTextResolution(ZBottomWidth, ZLabelHeight);
+  ZLabelBottom.Font.Size := ZLabelBottom.Resolution*PANEL_PAD;
+  ZLabelBottom.Width := ZBottomWidth;
   ZLabelBottom.Visible := ZLabelBottom.Width > 0;
-
-  ZLabelBottom.Height := Width - Front.Width;
+  ZLabelBottom.Height := ZLabelHeight;
   ZLabelBottom.Position.Point := ZLabelTop.Position.Point + TPoint3D.Create(0, ZLabelTop.Width/2 + ZLabelBottom.Width/2, 0);
 
   tag := 1;
@@ -1193,6 +1601,9 @@ begin
 end;
 
 procedure TPanelTicks.SetPositionLeft(RefPlane: TRectangle3D);
+var
+  FrontWidth, FrontHeight: Single;
+  ZTopWidth, ZBottomWidth, ZLabelHeight: Single;
 begin
   Width := RefPlane.Width;
   Height := RefPlane.Height + 2*PANEL_PAD;
@@ -1200,16 +1611,24 @@ begin
   Depth := SIZE_PANEL_TICKS;
   Position.Point := RefPlane.Position.Point + TPoint3D.Create(0, 0, -RefPlane.depth/2 - depth/2);
 
-  Front.Width := SIZE_PANEL_TICKS*(1 - SIZE_LABEL);
-  Front.Height := Height;
+  FrontWidth := SIZE_PANEL_TICKS*(1 - SIZE_LABEL);
+  FrontHeight := Height;
+  Front.Resolution := SafeTextResolution(FrontWidth, FrontHeight);
+  Front.Width := FrontWidth;
+  Front.Height := FrontHeight;
   Front.RotationAngle.Y := -90;
   Front.Position.Point := TPoint3D.Create(Width/2 + 0.001, 0, Depth/2 - Front.Width/2);
 
-  ZLabelTop.Text := Stg.FZLabel;
-  ZLabelTop.Width := Stg.XZPlane.Height/2 + Stg.XYPlane.Position.Y;
-  ZLabelTop.Visible := ZLabelTop.Width > 0;
+  ZTopWidth := Stg.XZPlane.Height/2 + Stg.XYPlane.Position.Y;
+  ZBottomWidth := Stg.XZPlane.Height - ZTopWidth;
+  ZLabelHeight := Depth - Front.Width;
 
-  ZLabelTop.Height := Depth - Front.Width;
+  ZLabelTop.Text := Stg.FZLabel;
+  ZLabelTop.Resolution := SafeTextResolution(ZTopWidth, ZLabelHeight);
+  ZLabelTop.Font.Size := ZLabelTop.Resolution*PANEL_PAD;
+  ZLabelTop.Width := ZTopWidth;
+  ZLabelTop.Visible := ZLabelTop.Width > 0;
+  ZLabelTop.Height := ZLabelHeight;
   ZLabelTop.RotationAngle.Z := 90;
   ZLabelTop.RotationAngle.X := -90;
   ZLabelTop.Position.Point := Front.Position.Point +
@@ -1219,10 +1638,11 @@ begin
   //ZLabelBottom.OnPaint := TempPaint;
 
   ZLabelBottom.Text := Stg.FZLabel;
-  ZLabelBottom.Width := Stg.XZPlane.Height - ZLabelTop.Width;
+  ZLabelBottom.Resolution := SafeTextResolution(ZBottomWidth, ZLabelHeight);
+  ZLabelBottom.Font.Size := ZLabelBottom.Resolution*PANEL_PAD;
+  ZLabelBottom.Width := ZBottomWidth;
   ZLabelBottom.Visible := ZLabelBottom.Width > 0;
-
-  ZLabelBottom.Height := Depth - Front.Width;
+  ZLabelBottom.Height := ZLabelHeight;
   ZLabelBottom.RotationAngle.Z := 90;
   ZLabelBottom.RotationAngle.X := -90;
   ZLabelBottom.Position.Point := ZLabelTop.Position.Point +
@@ -1253,8 +1673,18 @@ begin
 end;
 
 function TMainContainer.GetScale: Single;
+var
+  AxisRange: Single;
 begin
-  Result := (global.ZMax - global.ZMin)/Height;
+  AxisRange := global.ZMax - global.ZMin;
+  if SameValue(Height, 0) then
+    Result := MIN_AXIS_RANGE
+  else
+    begin
+      if SameValue(AxisRange, 0) then
+        AxisRange := MIN_AXIS_RANGE;
+      Result := AxisRange/Height;
+    end;
 end;
 
 function TMainContainer.GetGlobalData: TGlobalData;
@@ -1293,20 +1723,20 @@ begin
   FZLabel := '';
 
   ColorPlaneXY := TColorMaterialSource.Create(Self);
-  ColorPlaneXY.Color := global.XYPlaneBackgroundColor;
+  ColorPlaneXY.Color := MakeColor(global.XYPlaneBackgroundColor, global.PlaneOpacity);
 
   ColorPlane := TColorMaterialSource.Create(Self);
-  ColorPlane.Color := global.XZPlaneYZPlaneBackgroundColor;
+  ColorPlane.Color := MakeColor(global.XZPlaneYZPlaneBackgroundColor, global.PlaneOpacity);
 
 
-
-  BarContainer := TBarContainer.Create(Self);
-  BarContainer.Parent := Self;
-  BarContainer.FOnUpdate := ResizePlanes;
 
   CreateXZPlane;
   CreateXYPlane;
   CreateYZPlane;
+
+  BarContainer := TBarContainer.Create(Self);
+  BarContainer.Parent := Self;
+  BarContainer.FOnUpdate := ResizePlanes;
 
   PanelRightTicks := TPanelTicks.Create(Self);
   PanelRightTicks.HitTest := false;
@@ -1326,7 +1756,7 @@ begin
   AxisXPanel.BottomSticker.Sticker.Data := DataXAxis;
 
 
-  Corner := TRectangle3D.Create(Self);
+  Corner := TAlphaPanelRectangle3D.Create(Self);
   Corner.Parent := Self;
   Corner.Width := SIZE_PANEL_TICKS;
   Corner.Depth := Corner.Width;
@@ -1334,9 +1764,13 @@ begin
   Corner.MaterialShaftSource := ColorPlaneXY;
   Corner.MaterialSource := ColorPlaneXY;
   Corner.HitTest := false;
-  Corner.Opacity := PLANE_OPACITY;
+  Corner.Opacity := 1;
+  Corner.ZWrite := global.PlaneOpacity >= 1;
+  TAlphaPanelRectangle3D(Corner).SetPanelFill(global.XYPlaneBackgroundColor,
+    global.PlaneOpacity);
 
   ResizePlanes;
+  ApplyPlaneOpacity;
 
   XZPlane.OnRender := XZPlaneRender;
   YZPlane.OnRender := YZPlaneRender;
@@ -1431,12 +1865,14 @@ var
   P: TTextLayer3D;
 begin
   P := Q.FindComponent('TopPanel') as TTextLayer3D;
+  P.Resolution := SafeTextResolution(Q.Width, PANEL_PAD);
   P.Width := Q.Width;
   P.Height := PANEL_PAD;
   P.Position.Y := -Q.Height/2 - P.Height/2;
   P.Invalidate;
 
   P := Q.FindComponent('BottomPanel') as TTextLayer3D;
+  P.Resolution := SafeTextResolution(Q.Width, PANEL_PAD);
   P.Width := Q.Width;
   P.Height := PANEL_PAD;
   P.Position.Y := Q.Height/2 + P.Height/2;
@@ -1449,6 +1885,7 @@ var
 begin
   P := Q.FindComponent('TopPanel') as TTextLayer3D;
 
+  P.Resolution := SafeTextResolution(Q.Depth, PANEL_PAD);
   P.Width := Q.Depth;
   P.Height := PANEL_PAD;
   P.Position.Y := -Q.Height/2 - P.Height/2;
@@ -1456,6 +1893,7 @@ begin
   P.Invalidate;
 
   P := Q.FindComponent('BottomPanel') as TTextLayer3D;
+  P.Resolution := SafeTextResolution(Q.Depth, PANEL_PAD);
   P.Width := Q.Depth;
   P.Height := PANEL_PAD;
   P.Position.Y := Q.Height/2 + P.Height/2;
@@ -1465,13 +1903,14 @@ end;
 
 procedure TMainContainer.CreateYZPlane;
 begin
-  YZPlane := TRectangle3D.Create(Self);
+  YZPlane := TTransparentRectangle3D.Create(Self);
   YZPlane.MaterialBackSource := ColorPlane;
   YZPlane.MaterialShaftSource := ColorPlane;
   YZPlane.MaterialSource := ColorPlane;
   YZPlane.Parent := Self;
   YZPlane.HitTest := false;
-  YZPlane.Opacity := PLANE_OPACITY;
+  YZPlane.Opacity := 1;
+  YZPlane.ZWrite := global.PlaneOpacity >= 1;
 
   CreateBorderPanels(YZPlane);
 end;
@@ -1508,6 +1947,14 @@ begin
   HeightBlock := YZPlane.Height/global.NumTicks;
 
   CenterPoint := TPoint3D.Create(YZPlane.Width/2, YZPlane.Height/2, 0);
+  Context.SetContextState(TContextState.csAlphaBlendOn);
+  Context.SetContextState(TContextState.csZTestOn);
+  if global.PlaneOpacity >= 1 then
+    Context.SetContextState(TContextState.csZWriteOn)
+  else
+    Context.SetContextState(TContextState.csZWriteOff);
+  Context.FillCube(CenterPoint, TPoint3D.Create(YZPlane.Width, YZPlane.Height,
+    YZPlane.Depth), global.PlaneOpacity, global.XZPlaneYZPlaneBackgroundColor);
   TopLeft := TPoint3D.Create(YZPlane.Width/2, YZPlane.Height/2, -YZPlane.Depth/2);
   DrawGrid(CenterPoint + TopLeft);
 
@@ -1523,13 +1970,14 @@ end;
 
 procedure TMainContainer.CreateXZPlane;
 begin
-  XZPlane := TRectangle3D.Create(Self);
+  XZPlane := TTransparentRectangle3D.Create(Self);
   XZPlane.MaterialBackSource := ColorPlane;
   XZPlane.MaterialShaftSource := ColorPlane;
   XZPlane.MaterialSource := ColorPlane;
   XZPlane.Parent := Self;
   XZPlane.HitTest := false;
-  XZPlane.Opacity := PLANE_OPACITY;
+  XZPlane.Opacity := 1;
+  XZPlane.ZWrite := global.PlaneOpacity >= 1;
 
   CreateBorderPanels(XZPlane);
 end;
@@ -1538,17 +1986,23 @@ procedure TMainContainer.CreateBorderPanels(P: TRectangle3D);
 var
   Panel: TTextLayer3D;
 begin
-  Panel := TTextLayer3D.Create(P);
+  Panel := TZTestTextLayer3D.Create(P);
   Panel.Name := 'TopPanel';
   Panel.Parent := P;
   Panel.HitTest := false;
+  Panel.Opacity := global.PlaneOpacity;
+  Panel.Transparency := true;
+  Panel.ZWrite := global.PlaneOpacity >= 1;
   (Panel.Children[0] as TText).HitTest := false;
   Panel.OnPaint := PanelPaint;
 
-  Panel := TTextLayer3D.Create(P);
+  Panel := TZTestTextLayer3D.Create(P);
   Panel.Name := 'BottomPanel';
   Panel.Parent := P;
   Panel.HitTest := false;
+  Panel.Opacity := global.PlaneOpacity;
+  Panel.Transparency := true;
+  Panel.ZWrite := global.PlaneOpacity >= 1;
   (Panel.Children[0] as TText).HitTest := false;
   Panel.OnPaint := PanelPaint;
 end;
@@ -1588,6 +2042,14 @@ begin
   HeightBlock := XZPlane.Height/global.NumTicks;
 
   CenterPoint := TPoint3D.Create(XZPlane.Width/2, XZPlane.Height/2, 0);
+  Context.SetContextState(TContextState.csAlphaBlendOn);
+  Context.SetContextState(TContextState.csZTestOn);
+  if global.PlaneOpacity >= 1 then
+    Context.SetContextState(TContextState.csZWriteOn)
+  else
+    Context.SetContextState(TContextState.csZWriteOff);
+  Context.FillCube(CenterPoint, TPoint3D.Create(XZPlane.Width, XZPlane.Height,
+    XZPlane.Depth), global.PlaneOpacity, global.XZPlaneYZPlaneBackgroundColor);
   TopLeft := TPoint3D.Create(-XZPlane.Width/2, XZPlane.Height/2, -XZPlane.Depth/2);
   DrawGrid(CenterPoint + TopLeft);
 
@@ -1603,8 +2065,8 @@ end;
 procedure TMainContainer.SetColor;
 begin
   //var CP: TColorMaterialSource;
-  ColorPlaneXY.Color := global.XYPlaneBackgroundColor;
-  ColorPlane.Color := global.XZPlaneYZPlaneBackgroundColor;
+  ColorPlaneXY.Color := MakeColor(global.XYPlaneBackgroundColor, global.PlaneOpacity);
+  ColorPlane.Color := MakeColor(global.XZPlaneYZPlaneBackgroundColor, global.PlaneOpacity);
 
   {
   (Corner.MaterialBackSource as TColorMaterialSource).Color := global.XYPlaneBackgroundColor;
@@ -1613,17 +2075,147 @@ begin
   }
 end;
 
+procedure TMainContainer.ApplyPlaneOpacity;
+var
+  UseZWrite: Boolean;
+
+  procedure ApplyRect(Rect: TRectangle3D; AColor: TAlphaColor);
+  var
+    BorderPanel: TComponent;
+  begin
+    if not Assigned(Rect) then Exit;
+
+    Rect.Opacity := 1;
+    Rect.ZWrite := UseZWrite;
+
+    if Rect is TAlphaPanelRectangle3D then
+      TAlphaPanelRectangle3D(Rect).SetPanelFill(AColor, global.PlaneOpacity);
+
+    if Rect.MaterialBackSource is TColorMaterialSource then
+      TColorMaterialSource(Rect.MaterialBackSource).Color := MakeColor(AColor, global.PlaneOpacity);
+    if Rect.MaterialShaftSource is TColorMaterialSource then
+      TColorMaterialSource(Rect.MaterialShaftSource).Color := MakeColor(AColor, global.PlaneOpacity);
+    if Rect.MaterialSource is TColorMaterialSource then
+      TColorMaterialSource(Rect.MaterialSource).Color := MakeColor(AColor, global.PlaneOpacity);
+
+    BorderPanel := Rect.FindComponent('TopPanel');
+    if BorderPanel is TTextLayer3D then
+      begin
+        TTextLayer3D(BorderPanel).Opacity := global.PlaneOpacity;
+        TTextLayer3D(BorderPanel).Transparency := true;
+        TTextLayer3D(BorderPanel).ZWrite := UseZWrite;
+        TTextLayer3D(BorderPanel).Invalidate;
+      end;
+
+    BorderPanel := Rect.FindComponent('BottomPanel');
+    if BorderPanel is TTextLayer3D then
+      begin
+        TTextLayer3D(BorderPanel).Opacity := global.PlaneOpacity;
+        TTextLayer3D(BorderPanel).Transparency := true;
+        TTextLayer3D(BorderPanel).ZWrite := UseZWrite;
+        TTextLayer3D(BorderPanel).Invalidate;
+      end;
+  end;
+
+  procedure ApplySticker(Group: TGroupSticker; AOpacity: Single;
+    UseFillAlpha: Boolean = false);
+  var
+    StickerZWrite: Boolean;
+  begin
+    if not Assigned(Group) then Exit;
+
+    StickerZWrite := AOpacity >= 1;
+    Group.Invalidate;
+    if Assigned(Group.Lb) then
+      begin
+        Group.Lb.Visible := Group.Visible;
+        Group.Lb.Transparency := true;
+        Group.Lb.ZWrite := StickerZWrite;
+        Group.Lb.TwoSide := true;
+        if UseFillAlpha then
+          begin
+            Group.Lb.Opacity := 1;
+            Group.Lb.Fill.Color := MakeColor(global.XYPlaneBackgroundColor, AOpacity);
+            Group.Lb.Fill.Kind := TBrushKind.Solid;
+          end
+        else
+          begin
+            Group.Lb.Opacity := AOpacity;
+            Group.Lb.Fill.Color := global.XYPlaneBackgroundColor;
+            Group.Lb.Fill.Kind := TBrushKind.Solid;
+          end;
+        Group.Lb.Invalidate;
+      end;
+    if Assigned(Group.Sticker) then
+      begin
+        Group.Sticker.Visible := Group.Visible;
+        Group.Sticker.Transparency := true;
+        Group.Sticker.ZWrite := StickerZWrite;
+        Group.Sticker.TwoSide := true;
+        if UseFillAlpha then
+          begin
+            Group.Sticker.Opacity := 1;
+            Group.Sticker.Fill.Color := MakeColor(global.XYPlaneBackgroundColor, AOpacity);
+            Group.Sticker.Fill.Kind := TBrushKind.Solid;
+          end
+        else
+          begin
+            Group.Sticker.Opacity := AOpacity;
+            Group.Sticker.Fill.Color := global.XYPlaneBackgroundColor;
+            Group.Sticker.Fill.Kind := TBrushKind.Solid;
+          end;
+        Group.Sticker.Invalidate;
+      end;
+  end;
+
+begin
+  SetColor;
+  UseZWrite := global.PlaneOpacity >= 1;
+
+  ApplyRect(XYPlane, global.XYPlaneBackgroundColor);
+  ApplyRect(XZPlane, global.XZPlaneYZPlaneBackgroundColor);
+  ApplyRect(YZPlane, global.XZPlaneYZPlaneBackgroundColor);
+  ApplyRect(Corner, global.XYPlaneBackgroundColor);
+
+  if Assigned(PanelRightTicks) then
+    begin
+      ApplyRect(PanelRightTicks, global.XZPlaneYZPlaneBackgroundColor);
+      PanelRightTicks.Invalidate;
+    end;
+
+  if Assigned(PanelLeftTicks) then
+    begin
+      ApplyRect(PanelLeftTicks, global.XZPlaneYZPlaneBackgroundColor);
+      PanelLeftTicks.Invalidate;
+    end;
+
+  if Assigned(AxisXPanel) then
+    begin
+      AxisXPanel.TopSticker.Visible := true;
+      AxisXPanel.BottomSticker.Visible := false;
+      ApplySticker(AxisXPanel.TopSticker, global.PlaneOpacity);
+    end;
+
+  if Assigned(AxisYPanel) then
+    begin
+      AxisYPanel.TopSticker.Visible := true;
+      AxisYPanel.BottomSticker.Visible := false;
+      ApplySticker(AxisYPanel.TopSticker, global.PlaneOpacity);
+    end;
+end;
+
 
 procedure TMainContainer.CreateXYPlane;
 begin
-  XYPlane := TRectangle3D.Create(Self);
+  XYPlane := TTransparentRectangle3D.Create(Self);
   XYPlane.MaterialBackSource := ColorPlaneXY;
   XYPlane.MaterialShaftSource := ColorPlaneXY;
   XYPlane.MaterialSource := ColorPlaneXY;
   XYPlane.Parent := Self;
   XYPlane.HitTest := false;
   XYPlane.OnClick := (Boss as TBarGraph).ViewportClick;
-  XYPlane.Opacity := PLANE_OPACITY;
+  XYPlane.Opacity := 1;
+  XYPlane.ZWrite := global.PlaneOpacity >= 1;
 end;
 
 procedure TMainContainer.XYPlaneRender(Sender: TObject; Context: TContext3D);
@@ -1657,6 +2249,14 @@ begin
   DepthBlock := BAR_DEPTH + 2*BAR_PAD;
 
   CenterPoint := TPoint3D.Create(XYPlane.Width/2, XYPlane.Height/2, 0);
+  Context.SetContextState(TContextState.csAlphaBlendOn);
+  Context.SetContextState(TContextState.csZTestOn);
+  if global.PlaneOpacity >= 1 then
+    Context.SetContextState(TContextState.csZWriteOn)
+  else
+    Context.SetContextState(TContextState.csZWriteOff);
+  Context.FillCube(CenterPoint, TPoint3D.Create(XYPlane.Width, XYPlane.Height,
+    XYPlane.Depth), global.PlaneOpacity, global.XYPlaneBackgroundColor);
   TopLeft := TPoint3D.Create(-XYPlane.Width/2, -XYPlane.Height/2, XYPlane.Depth/2);
   DrawGrid(CenterPoint + TopLeft);
   TopLeft := TPoint3D.Create(-XYPlane.Width/2, XYPlane.Height/2, XYPlane.Depth/2);
@@ -1737,6 +2337,18 @@ var
   gb: TBarGraph;
 begin
   gb := Stg.Boss as TBarGraph;
+
+  if (Button = TMouseButton.mbLeft) and (ActiveRenderMode = brMesh) and
+    (Sender is TMesh) and (not gb.FDragMoved) then
+    begin
+      gb.Status := 'static';
+      if gb.TrySelectMeshAt(PointF(X, Y)) then
+        begin
+          gb.Tag := 1;
+        end;
+      Exit;
+    end;
+
   gb.BarMouseUp(Sender, Button, Shift, X, Y);
 end;
 
@@ -1777,6 +2389,9 @@ begin
   if (SelectedBar = Nil) or ((last <> Nil) and (last = SelectedBar)) then
     ChangeCamera;
 
+  if SelectedBar <> FMeshSelectionBar then
+    ClearMeshSelection;
+
   Legend.Visible := false;
   Legend.RotationAngle.y := 135;
   Legend.RotationAngle.X := 0;
@@ -1794,6 +2409,7 @@ begin
       bar := Sender as TBar;
       UnSelected(bar);
       bar.isSelected := not bar.isSelected;
+      gb.Tag := 1;
 
       if bar.isSelected then
         begin
@@ -1801,20 +2417,7 @@ begin
           Legend.Data := Stg.RequestData(bar);
           Legend.Visible := true;
           Legend.Invalidate;
-          if bar.val >= 0 then
-            begin
-              Legend.Position.Point := bar.Position.Point + TPoint3D.Create(0, -bar.Height/2, 0);
-              Legend.RotationAngle.X := 0;
-              Legend.Sign.StickerA.RotationAngle.Y := 180;
-              Legend.Sign.RotationAngle.Z := 0;
-            end
-          else
-            begin
-              Legend.Position.Point := bar.Position.Point + TPoint3D.Create(0, bar.Height/2, 0);
-              Legend.RotationAngle.X := 180;
-              Legend.Sign.StickerA.RotationAngle.Y := 180;
-              Legend.Sign.RotationAngle.Z := 180;
-            end;
+          PositionLegendForBar(bar);
 
           InitCamera;
           RotateLegend;
@@ -1822,10 +2425,36 @@ begin
     end;
 end;
 
+procedure TBarContainer.PositionLegendForBar(bar: TBar);
+begin
+  if not Assigned(bar) then Exit;
+
+  if bar.val >= 0 then
+    begin
+      Legend.Position.Point := bar.Position.Point + TPoint3D.Create(0, -bar.Height/2, 0);
+      Legend.RotationAngle.X := 0;
+      Legend.Sign.StickerA.RotationAngle.Y := 180;
+      Legend.Sign.RotationAngle.Z := 0;
+    end
+  else
+    begin
+      Legend.Position.Point := bar.Position.Point + TPoint3D.Create(0, bar.Height/2, 0);
+      Legend.RotationAngle.X := 180;
+      Legend.Sign.StickerA.RotationAngle.Y := 180;
+      Legend.Sign.RotationAngle.Z := 180;
+    end;
+end;
+
 constructor TBarContainer.Create(AOwner: TComponent);
 begin
   inherited;
   Stg := AOwner as TMainContainer;
+  FBarIndex := TDictionary<Int64, TBar>.Create;
+  FDataIndex := TDictionary<Int64, Integer>.Create;
+  FBarData := TList<TBarData>.Create;
+  FMeshGroups := TObjectList<TMesh>.Create(true);
+  FMeshDataIndexes := TObjectDictionary<TMesh, TList<Integer>>.Create([doOwnsValues]);
+  FRenderMode := brAuto;
   FRowCount := DEFAULT_ROWCOUNT;
   FColCount := DEFAULT_COLCOUNT;
   Stg.DataYAxis.Count := FRowCount;
@@ -1840,6 +2469,19 @@ begin
   Legend.Sign.StickerB.OnClick := LegendClick;
   Legend.Sign.StickerA.OnClick := LegendClick;
 
+  FMeshSelectionBar := TBar.Create(Self);
+  FMeshSelectionBar.Name := 'MeshSelectionBar';
+  FMeshSelectionBar.Parent := Self;
+  FMeshSelectionBar.Visible := false;
+  FMeshSelectionBar.HitTest := false;
+  FMeshSelectionBar.AutoCapture := false;
+  FMeshSelectionBar.FRenderBody := false;
+  FMeshSelectionBar.Width := BAR_WIDTH;
+  FMeshSelectionBar.Depth := BAR_DEPTH;
+  FMeshSelectionBar.SubdivisionsHeight := 1;
+  FMeshSelectionBar.SubdivisionsDepth := 1;
+  FMeshSelectionBar.SubdivisionsWidth := 1;
+
   BearingTop := TDummy.Create(Self);
   AddObject(BearingTop);
   BearingMiddle := TDummy.Create(Self);
@@ -1849,10 +2491,25 @@ begin
   BearingMiddle.AddObject(PackCamera);
 end;
 
+destructor TBarContainer.Destroy;
+begin
+  FMeshGroups.Free;
+  FMeshDataIndexes.Free;
+  FBarData.Free;
+  FDataIndex.Free;
+  FBarIndex.Free;
+  inherited;
+end;
+
 procedure TBar.BarRender(Sender: TObject; Context: TContext3D);
 begin
   if FIsSelected then
-    Context.DrawCube(TPoint3D.Zero, TPoint3D.Create(1, 1, 1), 1, claBlack);
+    begin
+      if FRenderBody then
+        Context.DrawCube(TPoint3D.Zero, TPoint3D.Create(1, 1, 1), 1, claBlack)
+      else
+        Context.DrawCube(TPoint3D.Zero, TPoint3D.Create(Width, Height, Depth), 1, claBlack);
+    end;
 end;
 
 constructor TBar.Create(AOwner: TComponent);
@@ -1860,19 +2517,31 @@ begin
   inherited;
   Stg := (AOwner as TBarContainer).Stg;
   FIsSelected := false;
+  FRenderBody := true;
+  FMaterial := TLightMaterialSource.Create(Self);
+  FMaterial.Shininess := 10;
+  MaterialSource := FMaterial;
   OnRender := BarRender;
 end;
 
-procedure TBar.SetColor(val: TAlphaColor);
-var
-  mat: TLightMaterialSource;
+procedure TBar.Render;
 begin
-  mat := TLightMaterialSource.Create(self);
-  mat.Shininess := 10;
-  mat.Ambient := val;
-  mat.Emissive := val;
-  mat.Specular := val;
-  MaterialSource := mat;
+  if FRenderBody then
+    inherited;
+end;
+
+procedure TBar.SetColor(val: TAlphaColor);
+begin
+  if not Assigned(FMaterial) then
+    begin
+      FMaterial := TLightMaterialSource.Create(Self);
+      FMaterial.Shininess := 10;
+      MaterialSource := FMaterial;
+    end;
+
+  FMaterial.Ambient := val;
+  FMaterial.Emissive := val;
+  FMaterial.Specular := val;
 end;
 
 procedure TBar.SetIsSelected(val: Boolean);
@@ -1926,7 +2595,123 @@ begin
       end;
 end;
 
-procedure TBarContainer.InvalidateNotSelectedBars;
+function TBarContainer.BarKey(row, col: Integer): Int64;
+begin
+  Result := (Int64(row) shl 32) or Int64(Cardinal(col));
+end;
+
+function TBarContainer.ActiveRenderMode: TBarRenderMode;
+begin
+  Result := FRenderMode;
+  if Result = brAuto then
+    begin
+      if FBarData.Count >= MESH_RENDER_THRESHOLD then
+        Result := brMesh
+      else
+        Result := brCubes;
+    end;
+end;
+
+function TBarContainer.UpsertBarData(row, col: Integer; Value: Single; cl: TAlphaColor;
+  out OldValue: Single; out ExistingBar: Boolean): Integer;
+var
+  key: Int64;
+  data: TBarData;
+begin
+  key := BarKey(row, col);
+  ExistingBar := FDataIndex.TryGetValue(key, Result);
+
+  if ExistingBar then
+    begin
+      data := FBarData[Result];
+      OldValue := data.val;
+      data.val := Value;
+      data.color := cl;
+      FBarData[Result] := data;
+    end
+  else
+    begin
+      OldValue := Value;
+      data.row := row;
+      data.col := col;
+      data.val := Value;
+      data.color := cl;
+      Result := FBarData.Count;
+      FBarData.Add(data);
+      FDataIndex.Add(key, Result);
+    end;
+
+  FMeshDirty := true;
+end;
+
+procedure TBarContainer.BeginDataUpdate;
+begin
+  Inc(FUpdateLock);
+end;
+
+procedure TBarContainer.EndDataUpdate;
+begin
+  if FUpdateLock > 0 then
+    Dec(FUpdateLock);
+
+  if FUpdateLock = 0 then
+    ApplyPendingLayout;
+end;
+
+procedure TBarContainer.RequestLayoutUpdate(UpdateCamera: Boolean);
+begin
+  FNeedsLayoutUpdate := true;
+  FNeedsCameraUpdate := FNeedsCameraUpdate or UpdateCamera;
+
+  if FUpdateLock = 0 then
+    ApplyPendingLayout;
+end;
+
+procedure TBarContainer.ApplyPendingLayout;
+var
+  UpdateCamera: Boolean;
+begin
+  if not FNeedsLayoutUpdate then Exit;
+
+  UpdateCamera := FNeedsCameraUpdate;
+  FNeedsLayoutUpdate := false;
+  FNeedsCameraUpdate := false;
+
+  if Assigned(FOnUpdate) then FOnUpdate;
+  UpdatePositions;
+
+  if UpdateCamera and Assigned(Stg) and Assigned(Stg.Parent) and (Stg.Parent is TBarGraph) then
+    (Stg.Parent as TBarGraph).UpdateCameraPosition;
+
+  ApplyRenderMode;
+end;
+
+procedure TBarContainer.ApplyRenderMode;
+begin
+  if ActiveRenderMode = brMesh then
+    begin
+      SetCubeVisibility(false);
+      if FMeshDirty then
+        RebuildMesh;
+    end
+  else
+    begin
+      ClearMeshGroups;
+      SetCubeVisibility(true);
+    end;
+end;
+
+procedure TBarContainer.SetRenderMode(val: TBarRenderMode);
+begin
+  if FRenderMode <> val then
+    begin
+      FRenderMode := val;
+      FMeshDirty := true;
+      RequestLayoutUpdate(false);
+    end;
+end;
+
+procedure TBarContainer.SetCubeVisibility(Visible: Boolean);
 var
   I: Integer;
   bar: TBar;
@@ -1935,10 +2720,551 @@ begin
     if Children[I] is TBar then
       begin
         bar := Children[I] as TBar;
+        if bar <> FMeshSelectionBar then
+          bar.Visible := Visible;
+      end;
+
+  if Visible then
+    ClearMeshSelection;
+end;
+
+procedure TBarContainer.ClearMeshGroups;
+begin
+  FMeshDataIndexes.Clear;
+  FMeshGroups.Clear;
+  FMeshDirty := true;
+end;
+
+procedure TBarContainer.RebuildMesh;
+var
+  Groups: TObjectDictionary<TAlphaColor, TList<Integer>>;
+  Items: TList<Integer>;
+  Pair: TPair<TAlphaColor, TList<Integer>>;
+  I, StartIndex, ChunkCount: Integer;
+begin
+  FMeshDataIndexes.Clear;
+  FMeshGroups.Clear;
+
+  Groups := TObjectDictionary<TAlphaColor, TList<Integer>>.Create([doOwnsValues]);
+  try
+    for I := 0 to FBarData.Count - 1 do
+      begin
+        if not Groups.TryGetValue(FBarData[I].color, Items) then
+          begin
+            Items := TList<Integer>.Create;
+            Groups.Add(FBarData[I].color, Items);
+          end;
+        Items.Add(I);
+      end;
+
+    for Pair in Groups do
+      begin
+        StartIndex := 0;
+        while StartIndex < Pair.Value.Count do
+          begin
+            ChunkCount := Min(MESH_BARS_PER_CHUNK, Pair.Value.Count - StartIndex);
+            BuildMeshChunk(Pair.Key, Pair.Value, StartIndex, ChunkCount);
+            Inc(StartIndex, ChunkCount);
+          end;
+      end;
+  finally
+    Groups.Free;
+  end;
+
+  FMeshDirty := false;
+end;
+
+procedure TBarContainer.ClearMeshSelection;
+begin
+  if Assigned(FMeshSelectionBar) then
+    begin
+      FMeshSelectionBar.Visible := false;
+      FMeshSelectionBar.FIsSelected := false;
+    end;
+end;
+
+procedure TBarContainer.GetBarBox(const AData: TBarData; out Center: TPoint3D;
+  out BarHeight: Single);
+var
+  RefPoint, TopLeft: TPoint3D;
+  WB, DB, DH: Single;
+begin
+  BarHeight := Abs(AData.val/Stg.Scale);
+  WB := BAR_WIDTH + 2*BAR_PAD;
+  DB := BAR_DEPTH + 2*BAR_PAD;
+  RefPoint := TPoint3D.Create(-ColCount*WB/2, 0, RowCount*DB/2);
+  TopLeft := TPoint3D.Create(AData.col*WB, 0, -AData.row*DB);
+
+  if AData.val >= 0 then
+    DH := -BarHeight/2
+  else
+    DH := BarHeight/2;
+
+  Center := RefPoint + TopLeft + TPoint3D.Create(WB/2, DH, -DB/2);
+end;
+
+function PointInTriangle2D(const P, A, B, C: TPointF): Boolean;
+var
+  D1, D2, D3: Single;
+  HasNeg, HasPos: Boolean;
+
+  function Sign2D(const P1, P2, P3: TPointF): Single;
+  begin
+    Result := (P1.X - P3.X)*(P2.Y - P3.Y) - (P2.X - P3.X)*(P1.Y - P3.Y);
+  end;
+
+begin
+  D1 := Sign2D(P, A, B);
+  D2 := Sign2D(P, B, C);
+  D3 := Sign2D(P, C, A);
+
+  HasNeg := (D1 < 0) or (D2 < 0) or (D3 < 0);
+  HasPos := (D1 > 0) or (D2 > 0) or (D3 > 0);
+  Result := not (HasNeg and HasPos);
+end;
+
+function TBarContainer.TryPickMeshBarAtScreen(const P: TPointF; out DataIndex: Integer): Boolean;
+var
+  gb: TBarGraph;
+  I, J: Integer;
+  Center, CameraPos, FaceCenter: TPoint3D;
+  BarHeight, PickHeight: Single;
+  X0, X1, Y0, Y1, Z0, Z1: Single;
+  Corners: array[0..7] of TPoint3D;
+  ScreenCorners: array[0..7] of TPoint3D;
+  MinX, MaxX, MinY, MaxY: Single;
+  BestDistance, DistanceToFace: Single;
+  CandidateIndex: Integer;
+
+  procedure CheckTriangle(A, B, C: Integer);
+  begin
+    if not PointInTriangle2D(P,
+      PointF(ScreenCorners[A].X, ScreenCorners[A].Y),
+      PointF(ScreenCorners[B].X, ScreenCorners[B].Y),
+      PointF(ScreenCorners[C].X, ScreenCorners[C].Y)) then
+      Exit;
+
+    FaceCenter := (TPoint3D(LocalToAbsolute3D(Corners[A])) +
+      TPoint3D(LocalToAbsolute3D(Corners[B])) +
+      TPoint3D(LocalToAbsolute3D(Corners[C]))) * (1/3);
+    DistanceToFace := CameraPos.Distance(FaceCenter);
+    if DistanceToFace < BestDistance then
+      begin
+        BestDistance := DistanceToFace;
+        CandidateIndex := I;
+        Result := true;
+      end;
+  end;
+
+begin
+  Result := false;
+  DataIndex := -1;
+  CandidateIndex := -1;
+  BestDistance := MaxSingle;
+
+  if ActiveRenderMode <> brMesh then
+    Exit;
+
+  if not Assigned(Stg) or not Assigned(Stg.Boss) or not (Stg.Boss is TBarGraph) then
+    Exit;
+
+  gb := Stg.Boss as TBarGraph;
+  if not Assigned(gb.Context) or not Assigned(gb.Camera) then
+    Exit;
+
+  CameraPos := TPoint3D(gb.Camera.AbsolutePosition);
+
+  for I := 0 to FBarData.Count - 1 do
+    begin
+      GetBarBox(FBarData[I], Center, BarHeight);
+      PickHeight := Max(MIN_BAR_PICK_HEIGHT, BarHeight);
+
+      X0 := Center.X - BAR_WIDTH/2;
+      X1 := Center.X + BAR_WIDTH/2;
+      Y0 := Center.Y - PickHeight/2;
+      Y1 := Center.Y + PickHeight/2;
+      Z0 := Center.Z - BAR_DEPTH/2;
+      Z1 := Center.Z + BAR_DEPTH/2;
+
+      Corners[0] := TPoint3D.Create(X0, Y0, Z0);
+      Corners[1] := TPoint3D.Create(X1, Y0, Z0);
+      Corners[2] := TPoint3D.Create(X1, Y1, Z0);
+      Corners[3] := TPoint3D.Create(X0, Y1, Z0);
+      Corners[4] := TPoint3D.Create(X0, Y0, Z1);
+      Corners[5] := TPoint3D.Create(X1, Y0, Z1);
+      Corners[6] := TPoint3D.Create(X1, Y1, Z1);
+      Corners[7] := TPoint3D.Create(X0, Y1, Z1);
+
+      MinX := MaxSingle;
+      MinY := MaxSingle;
+      MaxX := -MaxSingle;
+      MaxY := -MaxSingle;
+      for J := 0 to 7 do
+        begin
+          ScreenCorners[J] := gb.Context.WorldToScreen(TProjection.Camera,
+            TPoint3D(LocalToAbsolute3D(Corners[J])));
+          MinX := Min(MinX, ScreenCorners[J].X);
+          MaxX := Max(MaxX, ScreenCorners[J].X);
+          MinY := Min(MinY, ScreenCorners[J].Y);
+          MaxY := Max(MaxY, ScreenCorners[J].Y);
+        end;
+
+      if (P.X < MinX) or (P.X > MaxX) or (P.Y < MinY) or (P.Y > MaxY) then
+        Continue;
+
+      CheckTriangle(0, 1, 5);
+      CheckTriangle(5, 4, 0);
+      CheckTriangle(3, 2, 6);
+      CheckTriangle(6, 7, 3);
+      CheckTriangle(0, 4, 7);
+      CheckTriangle(7, 3, 0);
+      CheckTriangle(1, 2, 6);
+      CheckTriangle(6, 5, 1);
+      CheckTriangle(0, 3, 2);
+      CheckTriangle(2, 1, 0);
+      CheckTriangle(4, 5, 6);
+      CheckTriangle(6, 7, 4);
+    end;
+
+  if Result then
+    DataIndex := CandidateIndex;
+end;
+
+function TBarContainer.TryPickMeshBar(const RayPos, RayDir: TPoint3D; out DataIndex: Integer;
+  out Intersection: TPoint3D): Boolean;
+var
+  I, HitCount: Integer;
+  Center, NearHit, FarHit: TPoint3D;
+  BarHeight, PickHeight, DistanceToHit, BestDistance: Single;
+begin
+  Result := false;
+  DataIndex := -1;
+  BestDistance := MaxSingle;
+
+  if ActiveRenderMode <> brMesh then
+    Exit;
+
+  for I := 0 to FBarData.Count - 1 do
+    begin
+      GetBarBox(FBarData[I], Center, BarHeight);
+      PickHeight := Max(MIN_BAR_PICK_HEIGHT, BarHeight);
+      HitCount := RayCastCuboidIntersect(RayPos, RayDir, Center, BAR_WIDTH,
+        PickHeight, BAR_DEPTH, NearHit, FarHit);
+
+      if HitCount > 0 then
+        begin
+          DistanceToHit := RayPos.Distance(NearHit);
+          if DistanceToHit < BestDistance then
+            begin
+              BestDistance := DistanceToHit;
+              DataIndex := I;
+              Intersection := NearHit;
+              Result := true;
+            end;
+        end;
+    end;
+end;
+
+function TBarContainer.TryPickMeshCell(const RayPos, RayDir: TPoint3D; out DataIndex: Integer;
+  out Intersection: TPoint3D): Boolean;
+var
+  WB, DB, RefX, RefZ: Single;
+  Row, Col: Integer;
+begin
+  Result := false;
+  DataIndex := -1;
+
+  if ActiveRenderMode <> brMesh then
+    Exit;
+
+  if not RayCastPlaneIntersect(RayPos, RayDir, TPoint3D.Zero, TPoint3D.Create(0, 1, 0),
+    Intersection) then
+    Exit;
+
+  WB := BAR_WIDTH + 2*BAR_PAD;
+  DB := BAR_DEPTH + 2*BAR_PAD;
+  RefX := -ColCount*WB/2;
+  RefZ := RowCount*DB/2;
+
+  Col := Floor((Intersection.X - RefX)/WB);
+  Row := Floor((RefZ - Intersection.Z)/DB);
+
+  if (Row < 0) or (Row >= RowCount) or (Col < 0) or (Col >= ColCount) then
+    Exit;
+
+  Result := FDataIndex.TryGetValue(BarKey(Row, Col), DataIndex);
+end;
+
+function TBarContainer.TryPickMeshTriangles(AMesh: TMesh; const RayPos, RayDir: TPoint3D;
+  out DataIndex: Integer; out Intersection: TPoint3D): Boolean;
+var
+  BestDistance: Single;
+  Found: Boolean;
+
+  procedure CheckMesh(LMesh: TMesh);
+  var
+    Items: TList<Integer>;
+    TriIndex, BarOffset: Integer;
+    I0, I1, I2: Integer;
+    P0, P1, P2, Hit: TPoint3D;
+    DistanceToHit: Single;
+  begin
+    if not Assigned(LMesh) then Exit;
+    if not FMeshDataIndexes.TryGetValue(LMesh, Items) then Exit;
+
+    for TriIndex := 0 to (LMesh.Data.IndexBuffer.Length div 3) - 1 do
+      begin
+        I0 := LMesh.Data.IndexBuffer.Indices[TriIndex*3 + 0];
+        I1 := LMesh.Data.IndexBuffer.Indices[TriIndex*3 + 1];
+        I2 := LMesh.Data.IndexBuffer.Indices[TriIndex*3 + 2];
+
+        P0 := LMesh.Data.VertexBuffer.Vertices[I0];
+        P1 := LMesh.Data.VertexBuffer.Vertices[I1];
+        P2 := LMesh.Data.VertexBuffer.Vertices[I2];
+
+        if RayCastTriangleIntersect(RayPos, RayDir, P0, P1, P2, Hit) then
+          begin
+            DistanceToHit := RayPos.Distance(Hit);
+            if DistanceToHit < BestDistance then
+              begin
+                BarOffset := TriIndex div MESH_TRIANGLES_PER_BAR;
+                if (BarOffset >= 0) and (BarOffset < Items.Count) then
+                  begin
+                    BestDistance := DistanceToHit;
+                    DataIndex := Items[BarOffset];
+                    Intersection := Hit;
+                    Found := true;
+                  end;
+              end;
+          end;
+      end;
+  end;
+
+var
+  I: Integer;
+begin
+  Found := false;
+  DataIndex := -1;
+  BestDistance := MaxSingle;
+
+  if ActiveRenderMode <> brMesh then
+    Exit(false);
+
+  if Assigned(AMesh) then
+    CheckMesh(AMesh)
+  else
+    for I := 0 to FMeshGroups.Count - 1 do
+      CheckMesh(FMeshGroups[I]);
+
+  Result := Found;
+end;
+
+function TBarContainer.SelectMeshDataIndex(DataIndex: Integer): Boolean;
+var
+  data: TBarData;
+begin
+  Result := false;
+  if (DataIndex < 0) or (DataIndex >= FBarData.Count) then
+    Exit;
+
+  data := FBarData[DataIndex];
+  UnSelected(FMeshSelectionBar);
+
+  FMeshSelectionBar.row := data.row;
+  FMeshSelectionBar.col := data.col;
+  FMeshSelectionBar.val := data.val;
+  FMeshSelectionBar.fcolor := data.color;
+  FMeshSelectionBar.SetPosition(RowCount, ColCount);
+  FMeshSelectionBar.Width := BAR_WIDTH + 2*SELECTION_BAR_PAD;
+  FMeshSelectionBar.Depth := BAR_DEPTH + 2*SELECTION_BAR_PAD;
+  FMeshSelectionBar.Height := Max(MIN_BAR_PICK_HEIGHT, Abs(data.val/Stg.Scale)) +
+    2*SELECTION_BAR_PAD;
+  FMeshSelectionBar.FIsSelected := false;
+  FMeshSelectionBar.isSelected := true;
+  FMeshSelectionBar.Visible := false;
+
+  Legend.bar := FMeshSelectionBar;
+  Legend.Data := Stg.RequestData(FMeshSelectionBar);
+  Legend.Visible := true;
+  Legend.Invalidate;
+  PositionLegendForBar(FMeshSelectionBar);
+
+  InitCamera;
+  RotateLegend;
+  (Stg.Boss as TBarGraph).Invalidate;
+  Result := true;
+end;
+
+function TBarContainer.SelectMeshBarFromRay(const RayPos, RayDir: TPoint3D): Boolean;
+var
+  DataIndex: Integer;
+  Intersection: TPoint3D;
+begin
+  Result := TryPickMeshBar(RayPos, RayDir, DataIndex, Intersection);
+
+  if not Result then
+    Exit;
+
+  Result := SelectMeshDataIndex(DataIndex);
+end;
+
+function TBarContainer.SelectMeshBarAtScreen(const P: TPointF): Boolean;
+var
+  DataIndex: Integer;
+begin
+  Result := TryPickMeshBarAtScreen(P, DataIndex);
+  if not Result then
+    Exit;
+
+  Result := SelectMeshDataIndex(DataIndex);
+end;
+
+function TBarContainer.SelectMeshBarFromMeshRay(AMesh: TMesh; const RayPos, RayDir: TPoint3D): Boolean;
+var
+  DataIndex: Integer;
+  Intersection: TPoint3D;
+begin
+  Result := TryPickMeshTriangles(AMesh, RayPos, RayDir, DataIndex, Intersection);
+  if not Result then
+    Exit;
+
+  Result := SelectMeshDataIndex(DataIndex);
+end;
+
+procedure TBarContainer.BuildMeshChunk(AColor: TAlphaColor; const AIndexes: TList<Integer>;
+  AStart, ACount: Integer);
+var
+  mesh: TMesh;
+  mat: TLightMaterialSource;
+  meshIndexes: TList<Integer>;
+  I: Integer;
+begin
+  if ACount <= 0 then Exit;
+
+  mesh := TMesh.Create(Self);
+  mesh.Parent := Self;
+  mesh.HitTest := true;
+  mesh.AutoCapture := true;
+  mesh.OnMouseDown := BarMouseDown;
+  mesh.OnMouseMove := BarMouseMove;
+  mesh.OnMouseUp := BarMouseUp;
+  mesh.TwoSide := true;
+  mesh.WrapMode := TMeshWrapMode.Original;
+  mesh.Width := 1;
+  mesh.Height := 1;
+  mesh.Depth := 1;
+
+  mat := TLightMaterialSource.Create(mesh);
+  mat.Shininess := 10;
+  mat.Ambient := AColor;
+  mat.Emissive := AColor;
+  mat.Specular := AColor;
+  mesh.MaterialSource := mat;
+
+  mesh.Data.VertexBuffer.Length := ACount*MESH_VERTICES_PER_BAR;
+  mesh.Data.IndexBuffer.Length := ACount*MESH_INDICES_PER_BAR;
+
+  meshIndexes := TList<Integer>.Create;
+  meshIndexes.Capacity := ACount;
+
+  for I := 0 to ACount - 1 do
+    begin
+      meshIndexes.Add(AIndexes[AStart + I]);
+      AddMeshBar(mesh, FBarData[AIndexes[AStart + I]], I*MESH_VERTICES_PER_BAR,
+        I*MESH_INDICES_PER_BAR);
+    end;
+
+  FMeshGroups.Add(mesh);
+  FMeshDataIndexes.Add(mesh, meshIndexes);
+end;
+
+procedure TBarContainer.AddMeshBar(AMesh: TMesh; const AData: TBarData; AVertexBase,
+  AIndexBase: Integer);
+var
+  Center: TPoint3D;
+  BarHeight: Single;
+  X0, X1, Y0, Y1, Z0, Z1: Single;
+  V, Idx: Integer;
+
+  procedure AddFace(const P0, P1, P2, P3, Normal: TPoint3D);
+  begin
+    AMesh.Data.VertexBuffer.Vertices[V + 0] := P0;
+    AMesh.Data.VertexBuffer.Vertices[V + 1] := P1;
+    AMesh.Data.VertexBuffer.Vertices[V + 2] := P2;
+    AMesh.Data.VertexBuffer.Vertices[V + 3] := P3;
+
+    AMesh.Data.VertexBuffer.Normals[V + 0] := Normal;
+    AMesh.Data.VertexBuffer.Normals[V + 1] := Normal;
+    AMesh.Data.VertexBuffer.Normals[V + 2] := Normal;
+    AMesh.Data.VertexBuffer.Normals[V + 3] := Normal;
+
+    AMesh.Data.VertexBuffer.TexCoord0[V + 0] := PointF(0, 0);
+    AMesh.Data.VertexBuffer.TexCoord0[V + 1] := PointF(1, 0);
+    AMesh.Data.VertexBuffer.TexCoord0[V + 2] := PointF(1, 1);
+    AMesh.Data.VertexBuffer.TexCoord0[V + 3] := PointF(0, 1);
+
+    AMesh.Data.IndexBuffer.Indices[Idx + 0] := V + 0;
+    AMesh.Data.IndexBuffer.Indices[Idx + 1] := V + 1;
+    AMesh.Data.IndexBuffer.Indices[Idx + 2] := V + 2;
+    AMesh.Data.IndexBuffer.Indices[Idx + 3] := V + 2;
+    AMesh.Data.IndexBuffer.Indices[Idx + 4] := V + 3;
+    AMesh.Data.IndexBuffer.Indices[Idx + 5] := V + 0;
+
+    Inc(V, 4);
+    Inc(Idx, 6);
+  end;
+
+begin
+  GetBarBox(AData, Center, BarHeight);
+
+  X0 := Center.X - BAR_WIDTH/2;
+  X1 := Center.X + BAR_WIDTH/2;
+  Y0 := Center.Y - BarHeight/2;
+  Y1 := Center.Y + BarHeight/2;
+  Z0 := Center.Z - BAR_DEPTH/2;
+  Z1 := Center.Z + BAR_DEPTH/2;
+
+  V := AVertexBase;
+  Idx := AIndexBase;
+
+  AddFace(TPoint3D.Create(X0, Y1, Z0), TPoint3D.Create(X1, Y1, Z0),
+    TPoint3D.Create(X1, Y1, Z1), TPoint3D.Create(X0, Y1, Z1), TPoint3D.Create(0, 1, 0));
+  AddFace(TPoint3D.Create(X0, Y0, Z1), TPoint3D.Create(X1, Y0, Z1),
+    TPoint3D.Create(X1, Y0, Z0), TPoint3D.Create(X0, Y0, Z0), TPoint3D.Create(0, -1, 0));
+  AddFace(TPoint3D.Create(X0, Y0, Z0), TPoint3D.Create(X0, Y1, Z0),
+    TPoint3D.Create(X0, Y1, Z1), TPoint3D.Create(X0, Y0, Z1), TPoint3D.Create(-1, 0, 0));
+  AddFace(TPoint3D.Create(X1, Y0, Z1), TPoint3D.Create(X1, Y1, Z1),
+    TPoint3D.Create(X1, Y1, Z0), TPoint3D.Create(X1, Y0, Z0), TPoint3D.Create(1, 0, 0));
+  AddFace(TPoint3D.Create(X0, Y0, Z1), TPoint3D.Create(X0, Y1, Z1),
+    TPoint3D.Create(X1, Y1, Z1), TPoint3D.Create(X1, Y0, Z1), TPoint3D.Create(0, 0, 1));
+  AddFace(TPoint3D.Create(X1, Y0, Z0), TPoint3D.Create(X1, Y1, Z0),
+    TPoint3D.Create(X0, Y1, Z0), TPoint3D.Create(X0, Y0, Z0), TPoint3D.Create(0, 0, -1));
+end;
+
+procedure TBarContainer.InvalidateNotSelectedBars;
+var
+  I: Integer;
+  bar: TBar;
+  data: TBarData;
+begin
+  for I := 0 to FBarData.Count - 1 do
+    begin
+      data := FBarData[I];
+      data.color := Stg.global.BarColor;
+      FBarData[I] := data;
+    end;
+  FMeshDirty := true;
+
+  for I := 0 to ChildrenCount - 1 do
+    if Children[I] is TBar then
+      begin
+        bar := Children[I] as TBar;
         bar.fcolor := Stg.global.BarColor;
         if not bar.isSelected then bar.color := bar.fcolor;
         bar.repaint;
       end;
+
+  RequestLayoutUpdate(false);
 end;
 
 procedure TBarContainer.InvalidateSelected;
@@ -1961,18 +3287,15 @@ end;
 procedure TBarContainer.RecalculateDataBounds;
 var
   I: Integer;
-  bar: TBar;
 begin
   Stg.global.DataMin := MaxSingle;
   Stg.global.DataMax := MinSingle;
 
-  for I := 0 to ChildrenCount - 1 do
-    if Children[I] is TBar then
-      begin
-        bar := Children[I] as TBar;
-        Stg.global.DataMin := Min(Stg.global.DataMin, bar.val);
-        Stg.global.DataMax := Max(Stg.global.DataMax, bar.val);
-      end;
+  for I := 0 to FBarData.Count - 1 do
+    begin
+      Stg.global.DataMin := Min(Stg.global.DataMin, FBarData[I].val);
+      Stg.global.DataMax := Max(Stg.global.DataMax, FBarData[I].val);
+    end;
 end;
 
 function TBarContainer.IndexOf(row, col: Integer): TBar;
@@ -1980,10 +3303,17 @@ var
   comp: TComponent;
   s: String;
 begin
+  if Assigned(FBarIndex) and FBarIndex.TryGetValue(BarKey(row, col), Result) then
+    Exit;
+
   s := Format('Bar_%d_%d', [row, col]);
   comp := FindComponent(s);
   if (comp <> Nil) and (comp is TBar) then
-    Result := comp as TBar
+    begin
+      Result := comp as TBar;
+      if Assigned(FBarIndex) then
+        FBarIndex.AddOrSetValue(BarKey(row, col), Result);
+    end
   else
     Result := Nil;
 end;
@@ -2017,6 +3347,7 @@ begin
   bar.OnMouseMove := BarMouseMove;
   bar.OnMouseUp := BarMouseUp;
   bar.EndUpdate;
+  FBarIndex.AddOrSetValue(BarKey(row, col), bar);
   bar.Repaint;
 end;
 
@@ -2025,9 +3356,7 @@ begin
   if val <> FRowCount then
     begin
       FRowCount := val;
-      if Assigned(FOnUpdate) then FOnUpdate;
-      UpdatePositions;
-      (Stg.Parent as TBarGraph).UpdateCameraPosition;
+      RequestLayoutUpdate(true);
     end;
 end;
 
@@ -2036,44 +3365,69 @@ begin
   if val <> FColCount then
     begin
       FColCount := val;
-      if Assigned(FOnUpdate) then FOnUpdate;
-      UpdatePositions;
+      RequestLayoutUpdate(true);
     end;
 end;
 
 procedure TBarContainer.Add(row, col: Integer; Value: Single; cl: TAlphaColor = claBlue);
 var
   bar: TBar;
+  OldValue: Single;
+  ExistingData: Boolean;
+  RecalculateBounds: Boolean;
+  UpdateSelectedLegend: Boolean;
 begin
   if (row < 0) or (col < 0) then
     raise EArgumentException.Create('Row and column indexes must be greater than or equal to zero.');
 
-  bar := IndexOf(row, col);
+  RecalculateBounds := false;
+  UpdateSelectedLegend := false;
+  BeginDataUpdate;
+  try
+    UpsertBarData(row, col, Value, cl, OldValue, ExistingData);
 
-  if bar = Nil then
-    begin
-      RowCount := Max(RowCount, row + 1);
-      ColCount := Max(ColCount, col + 1);
+    RowCount := Max(RowCount, row + 1);
+    ColCount := Max(ColCount, col + 1);
 
-      CreateBar(row, col, Value, cl);
-      bar := IndexOf(row, col);
-    end
-  else
-    begin
-      bar.val := Value;
-      bar.fcolor := cl;
+    bar := IndexOf(row, col);
 
-      if not bar.isSelected then
-        bar.color := cl;
-    end;
+    RecalculateBounds := ExistingData and (not SameValue(OldValue, Value)) and
+      (SameValue(OldValue, Stg.global.DataMin) or SameValue(OldValue, Stg.global.DataMax));
 
-  RecalculateDataBounds;
-  UpdatePositions;
+    if Assigned(bar) then
+      begin
+        bar.val := Value;
+        bar.fcolor := cl;
 
-  if Assigned(bar) and bar.isSelected and (Legend.bar = bar) then
+        if not bar.isSelected then
+          bar.color := cl;
+      end
+    else if ActiveRenderMode = brCubes then
+      begin
+        CreateBar(row, col, Value, cl);
+        bar := IndexOf(row, col);
+      end;
+
+    if RecalculateBounds then
+      RecalculateDataBounds
+    else
+      begin
+        Stg.global.DataMin := Min(Stg.global.DataMin, Value);
+        Stg.global.DataMax := Max(Stg.global.DataMax, Value);
+      end;
+
+    RequestLayoutUpdate(false);
+    UpdateSelectedLegend := Assigned(bar) and bar.isSelected and (Legend.bar = bar);
+  finally
+    EndDataUpdate;
+  end;
+
+  if UpdateSelectedLegend then
     begin
       Legend.Data := Stg.RequestData(bar);
+      PositionLegendForBar(bar);
       Legend.Invalidate;
+      RotateLegend;
     end;
 end;
 
@@ -2129,8 +3483,10 @@ begin
     begin
       Stage.AxisXPanel.TopSticker.Lb.Text := val;
       Stage.AxisXPanel.TopSticker.Lb.Invalidate;
+      Stage.AxisXPanel.TopSticker.RebuildText3D;
       Stage.AxisXPanel.BottomSticker.Lb.Text := val;
       Stage.AxisXPanel.BottomSticker.Lb.Invalidate;
+      Stage.AxisXPanel.BottomSticker.RebuildText3D;
     end;
 end;
 
@@ -2145,9 +3501,11 @@ begin
     begin
       Stage.AxisYPanel.TopSticker.Lb.Text := val;
       Stage.AxisYPanel.TopSticker.Lb.Invalidate;
+      Stage.AxisYPanel.TopSticker.RebuildText3D;
 
       Stage.AxisYPanel.BottomSticker.Lb.Text := val;
       Stage.AxisYPanel.BottomSticker.Lb.Invalidate;
+      Stage.AxisYPanel.BottomSticker.RebuildText3D;
     end;
 end;
 
@@ -2177,6 +3535,17 @@ begin
     Stage.Invalidate;
 end;
 
+procedure TBarGraph.RequestInvalidate;
+begin
+  if FUpdateLock > 0 then
+    begin
+      FNeedsInvalidate := true;
+      Exit;
+    end;
+
+  Invalidate;
+end;
+
 function TBarGraph.GetZMin: Single;
 begin
   if Assigned(globalVars) then
@@ -2190,7 +3559,7 @@ begin
   if (Assigned(globalVars)) and (val <> globalVars.ZMin) then
     begin
       globalVars.ZMin := val;
-      if Assigned(Stage) then Stage.Invalidate;
+      RequestInvalidate;
     end;
 end;
 
@@ -2207,7 +3576,7 @@ begin
   if (Assigned(globalVars)) and (val <> globalVars.ZMax) then
     begin
       globalVars.ZMax := val;
-      if Assigned(Stage) then Stage.Invalidate;
+      RequestInvalidate;
     end;
 end;
 
@@ -2258,7 +3627,7 @@ begin
   if (Assigned(globalVars)) and (val <> globalVars.BarSelectedColor) then
     begin
       globalVars.BarSelectedColor := val;
-      if Assigned(Stage) then Stage.Invalidate;
+      RequestInvalidate;
     end;
 end;
 
@@ -2278,7 +3647,7 @@ begin
       if Assigned(Stage) then
         begin
           Stage.BarContainer.InvalidateNotSelectedBars;
-          Stage.Invalidate;
+          RequestInvalidate;
         end;
     end;
 end;
@@ -2297,7 +3666,7 @@ begin
   if (Assigned(globalVars)) and (val <> globalVars.BarGraphFontColor) then
     begin
       globalVars.BarGraphFontColor := val;
-      if Assigned(Stage) then Stage.Invalidate;
+      RequestInvalidate;
     end;
 end;
 
@@ -2314,7 +3683,7 @@ begin
   if (Assigned(globalVars)) and (val <> globalVars.BarGraphGridColor) then
     begin
       globalVars.BarGraphGridColor := val;
-      if Assigned(Stage) then Stage.Invalidate;
+      RequestInvalidate;
     end;
 end;
 
@@ -2331,7 +3700,9 @@ begin
   if (Assigned(globalVars)) and (val <> globalVars.XZPlaneYZPlaneBackgroundColor) then
     begin
       globalVars.XZPlaneYZPlaneBackgroundColor := val;
-      if Assigned(Stage) then Stage.Invalidate;
+      if Assigned(Stage) then
+        Stage.SetColor;
+      RequestInvalidate;
     end;
 end;
 
@@ -2348,7 +3719,31 @@ begin
   if (Assigned(globalVars)) and (val <> globalVars.XYPlaneBackgroundColor) then
     begin
       globalVars.XYPlaneBackgroundColor := val;
-      if Assigned(Stage) then Stage.Invalidate;
+      if Assigned(Stage) then
+        Stage.SetColor;
+      RequestInvalidate;
+    end;
+end;
+
+function TBarGraph.GetPlaneOpacity: Single;
+begin
+  if Assigned(globalVars) then
+    Result := globalVars.PlaneOpacity
+  else
+    Result := PLANE_OPACITY;
+end;
+
+procedure TBarGraph.SetPlaneOpacity(val: Single);
+var
+  NewValue: Single;
+begin
+  NewValue := EnsureRange(val, 0, 1);
+  if (Assigned(globalVars)) and (not SameValue(NewValue, globalVars.PlaneOpacity)) then
+    begin
+      globalVars.PlaneOpacity := NewValue;
+      if Assigned(Stage) then
+        Stage.ApplyPlaneOpacity;
+      RequestInvalidate;
     end;
 end;
 
@@ -2378,7 +3773,7 @@ begin
   if (Assigned(globalVars)) and (val <> globalVars.AutoScale) then
     begin
       globalVars.AutoScale := val;
-      if Assigned(Stage) then Stage.Invalidate;
+      RequestInvalidate;
     end;
 end;
 
@@ -2392,17 +3787,43 @@ begin
 end;
 
 procedure TBarGraph.SetNumTicks(val: Integer);
+var
+  NewValue: Integer;
 begin
-  if (Assigned(globalVars)) and (val <> globalVars.NumTicks) then
+  NewValue := Max(1, val);
+  if (Assigned(globalVars)) and (NewValue <> globalVars.NumTicks) then
     begin
-      globalVars.NumTicks := val;
-      if Assigned(Stage) then Stage.Invalidate;
+      globalVars.NumTicks := NewValue;
+      RequestInvalidate;
     end;
 end;
 
 procedure TBarGraph.Reset;
 begin
   SetInitialValues;
+end;
+
+procedure TBarGraph.BeginDataUpdate;
+begin
+  Inc(FUpdateLock);
+
+  if Assigned(Stage) and Assigned(Stage.BarContainer) then
+    Stage.BarContainer.BeginDataUpdate;
+end;
+
+procedure TBarGraph.EndDataUpdate;
+begin
+  if Assigned(Stage) and Assigned(Stage.BarContainer) then
+    Stage.BarContainer.EndDataUpdate;
+
+  if FUpdateLock > 0 then
+    Dec(FUpdateLock);
+
+  if (FUpdateLock = 0) and FNeedsInvalidate then
+    begin
+      FNeedsInvalidate := false;
+      Invalidate;
+    end;
 end;
 
 procedure TBarGraph.UpdateCameraPosition;
@@ -2563,10 +3984,21 @@ begin
   DoZoom(WheelDelta);
 end;
 
+function TBarGraph.TrySelectMeshAt(const P: TPointF): Boolean;
+begin
+  Result := false;
+  if not Assigned(Context) or not Assigned(Stage) or not Assigned(Stage.BarContainer) then
+    Exit;
+
+  Result := Stage.BarContainer.SelectMeshBarAtScreen(P);
+end;
+
 procedure TBarGraph.ViewportClick(Sender: TObject);
 begin
-  if Tag <> 1 then
-    Stage.BarContainer.UnSelected;
+  if Tag = 1 then
+    Exit;
+
+  Stage.BarContainer.UnSelected;
 end;
 
 procedure TBarGraph.BarMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
@@ -2575,6 +4007,8 @@ var
 begin
   Tag := 0;
   FDown := PointF(X, Y);
+  FClickStart := FDown;
+  FDragMoved := false;
   if ((ssLeft in Shift) or (ssCtrl in Shift)) and (Status = 'static') then
     begin
       Status := 'MouseMove';
@@ -2616,6 +4050,13 @@ var
  // mc: TMyCamera;
 begin
   Delta := PointF(X, Y) - FDown;
+  if ((ssLeft in Shift) or (ssCtrl in Shift)) and (Status = 'MouseMove') and
+    ((Abs(X - FClickStart.X) > 3) or (Abs(Y - FClickStart.Y) > 3)) then
+    FDragMoved := true;
+
+  if not FDragMoved then
+    Exit;
+
   if (ssCtrl in Shift) and (Status = 'MouseMove') then
     begin
       {
@@ -2634,7 +4075,9 @@ begin
     begin
       Rotate(X, Y);
     end;
-  Tag := 1;
+
+  if FDragMoved then
+    Tag := 1;
 end;
 
 procedure TBarGraph.BarMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
@@ -2643,27 +4086,52 @@ begin
     begin
       Status := 'static';
     end;
+
+  if (Button = TMouseButton.mbLeft) and (not FDragMoved) then
+    begin
+      if TrySelectMeshAt(PointF(X, Y)) then
+        Tag := 1;
+    end;
 end;
 
 procedure TBarGraph.Add(row, col: Integer; Value: Single; cl: TAlphaColor = 0);
 var
   temp: TAlphaColor;
 begin
+  if (row < 0) or (col < 0) then
+    raise EArgumentException.Create('Row and column indexes must be greater than or equal to zero.');
+
   if cl = 0 then temp := globalVars.BarColor else temp := cl;
   Stage.BarContainer.Add(row, col, Value, temp);
-  Stage.DataYAxis.Count := row + 1;
-  Stage.DataXAxis.Count := col + 1;
-  Stage.Invalidate;
+  Stage.DataYAxis.Count := Max(Stage.DataYAxis.Count, row + 1);
+  Stage.DataXAxis.Count := Max(Stage.DataXAxis.Count, col + 1);
+  RequestInvalidate;
 end;
 
 procedure TBarGraph.AddYLabel(row: Integer; val: String);
 begin
+  if row < 0 then
+    raise EArgumentException.Create('Row index must be greater than or equal to zero.');
+
   Stage.DataYAxis.Add(row, val);
+  Stage.AxisYPanel.TopSticker.Sticker.Invalidate;
+  Stage.AxisYPanel.TopSticker.RebuildText3D;
+  Stage.AxisYPanel.BottomSticker.Sticker.Invalidate;
+  Stage.AxisYPanel.BottomSticker.RebuildText3D;
+  RequestInvalidate;
 end;
 
 procedure TBarGraph.AddXLabel(col: Integer; val: String);
 begin
+  if col < 0 then
+    raise EArgumentException.Create('Column index must be greater than or equal to zero.');
+
   Stage.DataXAxis.Add(col, val);
+  Stage.AxisXPanel.TopSticker.Sticker.Invalidate;
+  Stage.AxisXPanel.TopSticker.RebuildText3D;
+  Stage.AxisXPanel.BottomSticker.Sticker.Invalidate;
+  Stage.AxisXPanel.BottomSticker.RebuildText3D;
+  RequestInvalidate;
 end;
 
 destructor TBarGraph.Destroy;
