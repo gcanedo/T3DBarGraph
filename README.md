@@ -34,7 +34,7 @@ The repository also includes a FireMonkey demo application and a performance tes
 |-- T3DBarGraphDemo.dproj        # Demo application project file
 |-- UMain.pas / UMain.fmx        # Demo form and UI
 |-- Test.dpr / UTest.pas         # Performance test application
-|-- PUBLIC_READINESS_REPORT.md   # Public-readiness notes and audit summary
+|-- PUBLIC_READINESS_REPORT.md   # Public release audit notes and cleanup summary
 |-- LICENSE                      # Apache License 2.0
 `-- README.md
 ```
@@ -69,7 +69,11 @@ This project was created as a Delphi FireMonkey component. Depending on your Del
 
 The performance test is useful when changing rendering, picking, camera movement, transparency, or bulk data loading behavior.
 
-Prebuilt performance-test zips, when available, are published as GitHub Release assets so users can try the test application without compiling the project. These distribution zips are intentionally not committed to the source tree.
+Prebuilt performance-test zips, when available, are published as GitHub Release assets so users can try the test application without compiling the project. Distribution zips and generated build outputs are intentionally not committed to the source tree.
+
+## Releases
+
+GitHub Releases may include a prebuilt performance-test ZIP for users who want to try the executable without installing Delphi. The source repository keeps Delphi project files, forms, resources, and component code; platform build folders and local IDE artifacts are ignored.
 
 ## Basic usage
 
@@ -192,17 +196,13 @@ procedure TurnLights(Val: Boolean);
 - Click empty space to clear the current selection.
 - Right-click to open the component popup menu.
 
-## Public readiness
-
-This repository is being prepared for public release. Before making it public, review `PUBLIC_READINESS_REPORT.md`, especially the generated/binary artifact section. Some build outputs and resource files are currently tracked in the repository history and should be reviewed before publishing.
-
 ## Notes
 
 - The component is implemented in `U3DBarGraph.pas`.
 - The demo data is configured in `UMain.pas`.
 - The performance test is configured in `UTest.pas`.
-- This project currently focuses on the visual component and demo usage. Automated tests and extended documentation are not included yet.
-- Consider adding screenshots or GIFs to this README before the public release.
+- The current validation workflow is manual RAD Studio testing plus the included performance test application.
+- `PUBLIC_READINESS_REPORT.md` documents the public-release cleanup and audit work that was done before publishing.
 
 ## License
 
