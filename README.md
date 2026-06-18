@@ -14,7 +14,7 @@ The repository also includes a FireMonkey demo application and a performance tes
 - Configurable plane transparency through `PlaneOpacity`.
 - Optional auto-scale mode for the Z axis.
 - Configurable Z-axis minimum, maximum, and number of ticks.
-- Mouse-driven rotation and mouse wheel zoom.
+- Mouse and keyboard navigation with rotation, panning, cursor-focused wheel zoom, and reset shortcuts.
 - Bar selection with a floating 3D information legend.
 - Mesh-based rendering for larger datasets to reduce FireMonkey 3D object count.
 - Bar picking support in both cube mode and mesh mode.
@@ -68,6 +68,8 @@ This project was created as a Delphi FireMonkey component. Depending on your Del
 3. Use the `1k`, `5k`, `10k`, and `50k` buttons to compare loading and interaction at different dataset sizes.
 
 The performance test is useful when changing rendering, picking, camera movement, transparency, or bulk data loading behavior.
+
+Prebuilt performance-test zips, when available, are published as GitHub Release assets so users can try the test application without compiling the project. These distribution zips are intentionally not committed to the source tree.
 
 ## Basic usage
 
@@ -180,11 +182,14 @@ procedure TurnLights(Val: Boolean);
 
 ## Interaction
 
-- Drag with the left mouse button to rotate the graph.
-- Use the mouse wheel to zoom.
-- Click a bar to select it and show its legend.
+- Left-drag with the mouse to rotate the graph.
+- Hold `Ctrl` and left-drag to pan the view.
+- Use the mouse wheel to zoom toward the current cursor position.
+- Use the arrow keys to pan the view.
+- Press `R` or `Home` to reset the view.
+- Click a bar to select it and show its floating 3D legend.
 - Bar selection works in both normal cube rendering and the mesh render path.
-- Click the background to clear the current selection.
+- Click empty space to clear the current selection.
 - Right-click to open the component popup menu.
 
 ## Public readiness

@@ -6,7 +6,7 @@
 - Branch: `fix/duplicate-bars-public-readiness`
 - Last updated: 2026-06-18
 - Reviewer: Codex
-- Status: Not recommended to publish as-is until generated/binary artifacts are reviewed and either intentionally kept or cleaned up.
+- Status: Nearly ready to publish after committing the generated-artifact cleanup and reviewing the remaining intentionally tracked resource files.
 
 ## Secret scan
 
@@ -37,18 +37,17 @@
 
 ### Current tree
 
-Tracked generated or binary-looking files currently present:
+Tracked generated or binary-looking files currently present after the cleanup staged on 2026-06-18:
 
-- `OSX64/Debug/T3DBarGraphDemo`
-- `OSX64/Debug/T3DBarGraphDemo.dSYM`
-- `OSX64/Debug/Test`
-- `OSX64/Debug/Test.dSYM`
-- `OSX64/Debug/Test.entitlements`
-- `OSX64/Debug/Test.info.plist`
-- `OSX64/Release/Test`
 - `T3DBarGraphDemo.res`
 - `T3DBarGraphPackage.res`
 - `Test.res`
+
+Notes:
+
+- `OSX64/` build outputs were removed from the Git index with `git rm --cached -r -- OSX64`; the local files remain on disk and are now ignored.
+- `Test.dproj` and `Test.res` are intentionally kept because the performance test project must be buildable from RAD Studio.
+- `.res` files are Delphi resource files. They are binary, but they can be legitimate project inputs when no equivalent `.rc` source is available.
 
 ### Historical
 
@@ -69,8 +68,8 @@ Generated or binary-looking paths found in history:
 
 ### Recommended cleanup
 
-- Review the listed generated/binary artifacts before making the repository public.
-- Do not delete files or rewrite history without owner approval.
+- Review the remaining `.res` artifacts before making the repository public.
+- Do not delete local files or rewrite history without owner approval.
 - If historical binaries should not be exposed, a fresh public repository may be safer than rewriting this history.
 
 ## Code changes
@@ -81,6 +80,7 @@ Generated or binary-looking paths found in history:
 - `UMain.pas`
 - `UTest.pas`
 - `PUBLIC_READINESS_REPORT.md`
+- `.gitignore`
 
 ### Behavior fixed or improved
 
@@ -92,15 +92,16 @@ Generated or binary-looking paths found in history:
 - Transparent plane/tick text layers now keep depth testing enabled so translucent panels do not render on top of bars incorrectly.
 - Axis mirror text was disabled where it produced unreadable mirrored labels.
 - Demo/test loading now supports batched performance runs.
+- Mouse and keyboard navigation were expanded with panning, arrow-key panning, reset shortcuts, and cursor-focused mouse wheel zoom.
+- The performance test UI now documents the current mouse and keyboard controls.
 
-### Local files not recommended for this commit
+### Local files not recommended for the public repository
 
-- `Test.dproj` has large RAD Studio auto-generated platform/deployment churn.
-- `Test.res` is a generated/binary resource update.
 - `security-audit-report.md` is a raw generated audit log with formatting issues.
+- `implementation_plan.md` is a local planning note.
 - `patch/` is the local task package, not library source.
-
-These files should be reviewed separately before deciding whether they belong in the public repository.
+- `dist/` contains local release artifacts that should be uploaded as GitHub Release assets rather than committed.
+- Platform build output directories such as `Win32/` and `OSX64/` should remain local and ignored.
 
 ## Testing
 
@@ -111,11 +112,12 @@ These files should be reviewed separately before deciding whether they belong in
 - Manual secret and generated-artifact searches were run.
 - `git diff --check` completed with no whitespace errors; Git reported only LF-to-CRLF working-copy warnings.
 - Command-line MSBuild was not available in this environment/license, so final Delphi builds must be run from RAD Studio.
+- A local Win32 performance-test distribution zip was prepared at `dist/T3DBarGraph-Test-Win32.zip`.
 
 ## Remaining recommendations
 
 - Install and run `gitleaks detect --source . --no-git=false --redact --report-format json --report-path gitleaks-report.json`.
-- Review and clean generated/binary artifacts before making the repository public.
-- Decide whether the public repo should include only the package/demo source or also the local performance test app.
-- Add or refine `.gitignore` after deciding which build outputs should stay out of source control.
+- Commit and push the staged `OSX64/` removal before making the repository public.
+- Keep the performance test project in the public repository, including `Test.dproj` and `Test.res`, per owner decision.
+- Upload `dist/T3DBarGraph-Test-Win32.zip` as a GitHub Release asset rather than committing it to source control.
 - Run a clean RAD Studio build for Win32/Win64 and the package project before publishing.

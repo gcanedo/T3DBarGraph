@@ -6,7 +6,8 @@ interface
     FMX.MaterialSources, System.UIConsts, FMX.Types3D, System.Math.Vectors,
     System.UITypes, FMX.Controls3D, System.Types, FMX.Ani, FMX.Layers3D,
     FMX.Graphics, FMX.Types, FMX.Objects, FMX.Dialogs, FMX.StdCtrls, FMX.Menus,
-    FMX.Forms, System.Generics.Collections;
+    FMX.Forms, FMX.Materials, System.Generics.Collections,
+    System.Generics.Defaults;
 
   const
 
@@ -49,6 +50,10 @@ interface
     BARGRAPH_DEFAULT_BACKGROUND_COLOR = claBlack;
     BARGRAPH_DEFAULT_GRID_COLOR = claRed;
     BARGRAPH_FONT_COLOR = claBlack;
+    LIGHT_KEY_COLOR = TAlphaColor($FFF0F0F0);
+    LIGHT_FILL_COLOR = TAlphaColor($FF808080);
+    BAR_MATERIAL_AMBIENT_FACTOR = 0.24;
+    BAR_MATERIAL_SPECULAR_FACTOR = 0.30;
     DEFAULT_ROWCOUNT = 3;
     DEFAULT_COLCOUNT = 4;
 
@@ -69,11 +74,19 @@ interface
     //// GENERAL SETTINGS////////
     ROTATION_STEP = 0.3;
     TRANSLATION_STEP = 0.02;
+    PAN_SCREEN_FACTOR = 0.0015;
+    PAN_MIN_STEP = 0.002;
+    KEYBOARD_PAN_DELTA = 28;
+    ZOOM_CURSOR_FOCUS_FACTOR = 1.0;
+    ZOOM_CURSOR_MIN_OFFSET = 2.0;
+    ZOOM_WHEEL_FACTOR = 0.82;
+    ZOOM_MIN_RADIUS_FACTOR = 0.12;
+    ZOOM_MAX_RADIUS_FACTOR = 10;
+    ZOOM_MIN_DISTANCE = 0.35;
 
     DEFAULT_RESOLUTION = 150;
     MAX_TEXT_LAYER_BITMAP_SIZE = 2048;
     MIN_TEXT_LAYER_RESOLUTION = 1;
-    ZOOM_STEP = 0.01;
     CAMERA_MAX_Z = 50;
     CAMERA_MIN_Z = -102;
 
@@ -190,8 +203,12 @@ interface
     end;
 
     TZTestTextLayer3D = class(TTextLayer3D)
+      private
+        FDisableZTest: Boolean;
       protected
         procedure Render; override;
+      public
+        property DisableZTest: Boolean read FDisableZTest write FDisableZTest;
     end;
 
 
@@ -306,6 +323,10 @@ interface
     TSticker = class(TZTestTextLayer3D)
       private
         info: TInfoAxis;
+        FMirrorText: Boolean;
+        procedure FillAxisText(Canvas: TCanvas; const R: TRectF;
+          const AText: string; const Flags: TFillTextFlags;
+          const AHorzAlign: TTextAlign);
       public
         Stg: TMainContainer;
         procedure Paint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
@@ -313,6 +334,7 @@ interface
         constructor Create(AOwner: TComponent); override;
         procedure SetInfo(Val: TInfoAxis);
         property Data: TInfoAxis read info write SetInfo;
+        property MirrorText: Boolean read FMirrorText write FMirrorText;
     end;
 
     TGroupSticker = class(TDummy)
@@ -331,11 +353,17 @@ interface
     end;
 
     TAxisYPanel = class(TDummy)
+      private
+        FSortMaterial: TMaterial;
+      protected
+        function GetMaterialForSorting: TMaterial; override;
+        procedure RenderChildren; override;
       public
         TopSticker, BottomSticker: TGroupSticker;
         Base: TRectangle3D;
         Stg: TMainContainer;
         constructor Create(AOwner: TComponent); override;
+        destructor Destroy; override;
         procedure Resize;
     end;
 
@@ -371,6 +399,7 @@ interface
     TMainContainer = class(TDummy)
       private
         ColorPlane, ColorPlaneXY: TColorMaterialSource;
+        FAxisViewFromBelow: Boolean;
       protected
         procedure MainRender(Sender: TObject; Context: TContext3D);
         procedure XYPlaneRender(Sender: TObject; Context: TContext3D);
@@ -382,6 +411,7 @@ interface
         procedure CreateBorderPanels(P: TRectangle3D);
         procedure ResizeBordersR(Q: TRectangle3D);
         procedure ResizeBordersL(Q: TRectangle3D);
+        procedure RenderChildren; override;
 
         procedure SetColor;
         procedure ApplyPlaneOpacity;
@@ -409,6 +439,7 @@ interface
         destructor Destroy; override;
         procedure ResizePlanes;
         procedure Invalidate;
+        procedure UpdateAxisStickerVisibility(AViewFromBelow: Boolean);
         function GetScale: Single;
 
 
@@ -429,7 +460,9 @@ interface
         dir: Integer;
         FDown: TPointF;
         FClickStart: TPointF;
+        FWheelFocusPos: TPointF;
         FDragMoved: Boolean;
+        FHasWheelFocusPos: Boolean;
         PopupMenu: TPopupMenu;
         FUpdateLock: Integer;
         FNeedsInvalidate: Boolean;
@@ -446,6 +479,7 @@ interface
 
         procedure DoZoom(WheelDelta: Integer);
         procedure BarMouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean);
+        procedure BarKeyDown(Sender: TObject; var Key: Word; var KeyChar: WideChar; Shift: TShiftState);
         procedure BarMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
         procedure BarMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
         procedure BarMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
@@ -453,6 +487,7 @@ interface
         procedure InitMouseEvents;
         procedure SetPositionLights;
         procedure RequestInvalidate;
+        function CameraSceneRadius: Single;
         function TrySelectMeshAt(const P: TPointF): Boolean;
 
 
@@ -466,6 +501,7 @@ interface
         function GetXLabel: String;
 
         procedure Rotate(const aX, aY: Single);
+        procedure PanCamera(const Delta: TPointF);
         function OnTheHead: Boolean;
 
       protected
@@ -568,6 +604,66 @@ procedure Register;
 
 implementation
 
+type
+  TOpenControl3D = class(TControl3D)
+  public
+    function MaterialForSorting: TMaterial;
+  end;
+
+  TStageRenderingComparer = class(TComparer<TControl3D>)
+  public
+    function Compare(const Left, Right: TControl3D): Integer; override;
+  end;
+
+function TOpenControl3D.MaterialForSorting: TMaterial;
+begin
+  Result := GetMaterialForSorting;
+end;
+
+function TStageRenderingComparer.Compare(const Left, Right: TControl3D): Integer;
+var
+  LeftPosition, RightPosition: TPoint3D;
+  LeftMaterial, RightMaterial: Pointer;
+  LeftLength, RightLength: Single;
+  IsLeftLengthNan, IsRightLengthNan: Boolean;
+begin
+  LeftMaterial := TOpenControl3D(Left).MaterialForSorting;
+  RightMaterial := TOpenControl3D(Right).MaterialForSorting;
+
+  if LeftMaterial = RightMaterial then
+    begin
+      Result := 0;
+      if Left.ZWrite and Right.ZWrite then
+        if (Left.Opacity < 1) and (Right.Opacity >= 1) then
+          Result := 1
+        else if (Left.Opacity >= 1) and (Right.Opacity < 1) then
+          Result := -1
+        else if (Left.Context <> nil) and (Right.Context <> nil) then
+          begin
+            LeftPosition := TPoint3D(Left.AbsolutePosition) -
+              TPoint3D(Left.Context.CurrentCameraMatrix.M[3]);
+            RightPosition := TPoint3D(Right.AbsolutePosition) -
+              TPoint3D(Left.Context.CurrentCameraMatrix.M[3]);
+            LeftLength := LeftPosition.Length;
+            RightLength := RightPosition.Length;
+            IsLeftLengthNan := IsNan(LeftLength);
+            IsRightLengthNan := IsNan(RightLength);
+            if IsLeftLengthNan and IsRightLengthNan then
+              Result := 0
+            else if not IsLeftLengthNan and IsRightLengthNan then
+              Result := 1
+            else if IsLeftLengthNan and not IsRightLengthNan then
+              Result := -1
+            else
+              Result := Trunc(RightLength - LeftLength);
+          end;
+    end
+  else if NativeUInt(LeftMaterial) < NativeUInt(RightMaterial) then
+    Result := -1
+  else
+    Result := 1;
+end;
+
 procedure Register;
 begin
   RegisterComponents('UofW', [TBarGraph]);
@@ -592,6 +688,19 @@ begin
   Result := Integer(Trunc(ProposedResolution));
   Result := Max(MIN_TEXT_LAYER_RESOLUTION, Result);
   Result := Min(DEFAULT_RESOLUTION, Result);
+end;
+
+function ScaleAlphaColor(AColor: TAlphaColor; AFactor: Single): TAlphaColor;
+var
+  C: TAlphaColorRec;
+  F: Single;
+begin
+  F := EnsureRange(AFactor, 0, 1);
+  C.Color := AColor;
+  C.R := Byte(Round(C.R*F));
+  C.G := Byte(Round(C.G*F));
+  C.B := Byte(Round(C.B*F));
+  Result := C.Color;
 end;
 
 constructor TGlobalData.Create;
@@ -653,12 +762,18 @@ end;
 
 procedure TZTestTextLayer3D.Render;
 begin
-  Context.SetContextState(TContextState.csZTestOn);
+  Context.SetContextState(TContextState.csAlphaBlendOn);
+  if DisableZTest then
+    Context.SetContextState(TContextState.csZTestOff)
+  else
+    Context.SetContextState(TContextState.csZTestOn);
   if ZWrite then
     Context.SetContextState(TContextState.csZWriteOn)
   else
     Context.SetContextState(TContextState.csZWriteOff);
   inherited;
+  if DisableZTest then
+    Context.SetContextState(TContextState.csZTestOn);
 end;
 
 function TGlobalData.GetZMin: Single;
@@ -951,6 +1066,7 @@ var
   ColorPlane: TColorMaterialSource;
 begin
   inherited;
+  FSortMaterial := TColorMaterial.Create;
   Stg := AOwner as TMainContainer;
   tag := 1;
   TopSticker := TGroupSticker.Create(Self);
@@ -970,15 +1086,37 @@ begin
   Base.MaterialShaftSource := ColorPlane;
   Base.MaterialSource := ColorPlane;
   Base.HitTest := false;
-  Base.Visible := false;
+  Base.Visible := true;
 
   tag := -1;
   BottomSticker := TGroupSticker.Create(Self);
   BottomSticker.RotationAngle.X := -90;
   BottomSticker.Sticker.RotationAngle.Y := 180;
-  BottomSticker.Lb.RotationAngle.Y := 180;
+  BottomSticker.Sticker.MirrorText := true;
+  BottomSticker.Lb.RotationAngle.Y := 0;
   BottomSticker.Parent := Self;
   BottomSticker.Visible := false;
+end;
+
+destructor TAxisYPanel.Destroy;
+begin
+  FSortMaterial.Free;
+  inherited;
+end;
+
+function TAxisYPanel.GetMaterialForSorting: TMaterial;
+begin
+  Result := FSortMaterial;
+end;
+
+procedure TAxisYPanel.RenderChildren;
+begin
+  if Assigned(Base) and Base.Visible then
+    Base.RenderInternal;
+  if Assigned(TopSticker) and TopSticker.Visible then
+    TopSticker.RenderInternal;
+  if Assigned(BottomSticker) and BottomSticker.Visible then
+    BottomSticker.RenderInternal;
 end;
 
 procedure TAxisYPanel.Resize;
@@ -993,22 +1131,34 @@ begin
   BottomSticker.Height := Depth;
   BottomSticker.Position.Y := Height/2 + 0.001;
   BottomSticker.Resize;
-  BottomSticker.Visible := false;
+  TopSticker.Visible := false;
+  BottomSticker.Visible := true;
 end;
 
 procedure TGroupSticker.Invalidate;
 var
   PanelOpacity: Single;
   UseFillAlpha: Boolean;
+  ForceAxisOverlay: Boolean;
+  DisableStickerZTest: Boolean;
 begin
   PanelOpacity := Stg.global.PlaneOpacity;
   UseFillAlpha := false;
+  ForceAxisOverlay := Owner is TAxisYPanel;
+  DisableStickerZTest := false;
 
   Lb.Visible := true;
   Lb.Transparency := true;
-  Lb.ZWrite := PanelOpacity >= 1;
+  Lb.ZWrite := (PanelOpacity >= 1) and (not ForceAxisOverlay);
+  if Lb is TZTestTextLayer3D then
+    TZTestTextLayer3D(Lb).DisableZTest := DisableStickerZTest;
   Lb.TwoSide := true;
-  if UseFillAlpha then
+  if ForceAxisOverlay then
+    begin
+      Lb.Opacity := 1;
+      Lb.Fill.Kind := TBrushKind.None;
+    end
+  else if UseFillAlpha then
     begin
       Lb.Opacity := 1;
       Lb.Fill.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PanelOpacity);
@@ -1027,8 +1177,14 @@ begin
       Sticker.Visible := true;
       Sticker.Transparency := true;
       Sticker.ZWrite := Lb.ZWrite;
+      Sticker.DisableZTest := DisableStickerZTest;
       Sticker.TwoSide := true;
-      if UseFillAlpha then
+      if ForceAxisOverlay then
+        begin
+          Sticker.Opacity := 1;
+          Sticker.Fill.Kind := TBrushKind.None;
+        end
+      else if UseFillAlpha then
         begin
           Sticker.Opacity := 1;
           Sticker.Fill.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PanelOpacity);
@@ -1116,15 +1272,26 @@ procedure TGroupSticker.Resize;
 var
   PanelOpacity: Single;
   UseFillAlpha: Boolean;
+  ForceAxisOverlay: Boolean;
+  DisableStickerZTest: Boolean;
 begin
   PanelOpacity := Stg.global.PlaneOpacity;
   UseFillAlpha := false;
+  ForceAxisOverlay := Owner is TAxisYPanel;
+  DisableStickerZTest := false;
 
   Lb.Visible := true;
   Lb.Transparency := true;
-  Lb.ZWrite := PanelOpacity >= 1;
+  Lb.ZWrite := (PanelOpacity >= 1) and (not ForceAxisOverlay);
+  if Lb is TZTestTextLayer3D then
+    TZTestTextLayer3D(Lb).DisableZTest := DisableStickerZTest;
   Lb.TwoSide := true;
-  if UseFillAlpha then
+  if ForceAxisOverlay then
+    begin
+      Lb.Opacity := 1;
+      Lb.Fill.Kind := TBrushKind.None;
+    end
+  else if UseFillAlpha then
     begin
       Lb.Opacity := 1;
       Lb.Fill.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PanelOpacity);
@@ -1143,9 +1310,15 @@ begin
 
   Sticker.Visible := true;
   Sticker.Transparency := true;
-  Sticker.ZWrite := PanelOpacity >= 1;
+  Sticker.ZWrite := (PanelOpacity >= 1) and (not ForceAxisOverlay);
+  Sticker.DisableZTest := DisableStickerZTest;
   Sticker.TwoSide := true;
-  if UseFillAlpha then
+  if ForceAxisOverlay then
+    begin
+      Sticker.Opacity := 1;
+      Sticker.Fill.Kind := TBrushKind.None;
+    end
+  else if UseFillAlpha then
     begin
       Sticker.Opacity := 1;
       Sticker.Fill.Color := MakeColor(Stg.global.XYPlaneBackgroundColor, PanelOpacity);
@@ -1183,20 +1356,6 @@ begin
   TextMaterial.Diffuse := Stg.global.BarGraphFontColor;
   TextMaterial.Emissive := Stg.global.BarGraphFontColor;
   TextMaterial.Specular := Stg.global.BarGraphFontColor;
-
-  if Assigned(Title3D) then
-    begin
-      Title3D.Text := Lb.Text;
-      Title3D.Visible := Lb.Text <> '';
-      Title3D.Width := Max(Height, 0.001);
-      Title3D.Height := PANEL_PAD;
-      Title3D.Position.X := Width/2 - SIZE_LABEL/2;
-      Title3D.Position.Y := 0;
-      Title3D.Position.Z := 0.002;
-      Title3D.RotationAngle.Z := -90;
-      Title3D.RotationAngle.Y := Lb.RotationAngle.Y;
-      Title3D.Font.Size := 12;
-    end;
 
   if not Assigned(ValueTexts3D) then Exit;
   ValueTexts3D.Clear;
@@ -1258,6 +1417,37 @@ begin
     TGroupSticker(Parent).RebuildText3D;
 end;
 
+procedure TSticker.FillAxisText(Canvas: TCanvas; const R: TRectF;
+  const AText: string; const Flags: TFillTextFlags;
+  const AHorzAlign: TTextAlign);
+var
+  State: TCanvasSaveState;
+  MirrorMatrix: TMatrix;
+  DrawAlign: TTextAlign;
+begin
+  if not MirrorText then
+    begin
+      Canvas.FillText(R, AText, True, 1, Flags, AHorzAlign, TTextAlign.Center);
+      Exit;
+    end;
+
+  DrawAlign := AHorzAlign;
+  if DrawAlign = TTextAlign.Leading then
+    DrawAlign := TTextAlign.Trailing
+  else if DrawAlign = TTextAlign.Trailing then
+    DrawAlign := TTextAlign.Leading;
+
+  State := Canvas.SaveState;
+  try
+    MirrorMatrix := TMatrix.CreateScaling(-1, 1)*
+      TMatrix.CreateTranslation(R.Left + R.Right, 0);
+    Canvas.MultiplyMatrix(MirrorMatrix);
+    Canvas.FillText(R, AText, True, 1, Flags, DrawAlign, TTextAlign.Center);
+  finally
+    Canvas.RestoreState(State);
+  end;
+end;
+
 procedure TSticker.Paint(Sender: TObject; Canvas: TCanvas; const ARect: TRectF);
 var
   PxHeightBlock, xRef, yRef, PxWidthBlock: Single;
@@ -1268,6 +1458,7 @@ var
   Flags: TFillTextFlags;
 begin
   Canvas.Font.Size := (0.1*Resolution);
+  Canvas.Fill.Kind := TBrushKind.Solid;
 
   PxHeightBlock := ARect.Height/info.blockCount;
   tickSizePx := TPointF.Create(WIDTH_LINE_TICK, HEIGHT_LINE_TICK)*Resolution;
@@ -1291,7 +1482,7 @@ begin
       TopLeft.X := xRef;
       TopLeft.Y := yRef;
       R := TRectF.Create(TopLeft, PxWidthBlock, PxHeightBlock);
-      Canvas.FillText(R, b.Text, True, 1, Flags, TTextAlign.Leading, TTextAlign.Center);
+      FillAxisText(Canvas, R, b.Text, Flags, TTextAlign.Leading);
     end;
 end;
 
@@ -1306,6 +1497,7 @@ var
 begin
 
   Canvas.Font.Size := (0.1*Resolution);
+  Canvas.Fill.Kind := TBrushKind.Solid;
 
   PxHeightBlock := ARect.Height/info.blockCount;
   tickSizePx := TPointF.Create(WIDTH_LINE_TICK, HEIGHT_LINE_TICK)*Resolution;
@@ -1329,7 +1521,7 @@ begin
       TopLeft.X := xRef;
       TopLeft.Y := yRef;
       R := TRectF.Create(TopLeft, PxWidthBlock, PxHeightBlock);
-      Canvas.FillText(R, b.Text, True, 1, Flags, TTextAlign.Trailing, TTextAlign.Center);
+      FillAxisText(Canvas, R, b.Text, Flags, TTextAlign.Trailing);
     end;
 end;
 
@@ -1794,7 +1986,7 @@ begin
   PanelRightTicks.Invalidate;
   PanelLeftTicks.Invalidate;
 
-  SetColor;
+  ApplyPlaneOpacity;
 end;
 
 procedure TMainContainer.ResizePlanes;
@@ -1841,7 +2033,7 @@ begin
   AxisYPanel.Height := XYPlane.Height;
   AxisYPanel.Depth := XYPlane.Depth;
   AxisYPanel.Position.Point := XYPlane.Position.Point +
-  TPoint3D.Create(XYPlane.Width/2 + AxisYPanel.Width/2, 0, 0);
+  TPoint3D.Create(XYPlane.Width/2 + AxisYPanel.Width/2 + PLANE_DEPTH, 0, 0);
   AxisYPanel.Resize;
 
 
@@ -2121,18 +2313,29 @@ var
     UseFillAlpha: Boolean = false);
   var
     StickerZWrite: Boolean;
+    ForceAxisOverlay: Boolean;
+    DisableStickerZTest: Boolean;
   begin
     if not Assigned(Group) then Exit;
 
-    StickerZWrite := AOpacity >= 1;
+    ForceAxisOverlay := Group.Owner is TAxisYPanel;
+    StickerZWrite := (AOpacity >= 1) and (not ForceAxisOverlay);
+    DisableStickerZTest := false;
     Group.Invalidate;
     if Assigned(Group.Lb) then
       begin
         Group.Lb.Visible := Group.Visible;
         Group.Lb.Transparency := true;
         Group.Lb.ZWrite := StickerZWrite;
+        if Group.Lb is TZTestTextLayer3D then
+          TZTestTextLayer3D(Group.Lb).DisableZTest := DisableStickerZTest;
         Group.Lb.TwoSide := true;
-        if UseFillAlpha then
+        if ForceAxisOverlay then
+          begin
+            Group.Lb.Opacity := 1;
+            Group.Lb.Fill.Kind := TBrushKind.None;
+          end
+        else if UseFillAlpha then
           begin
             Group.Lb.Opacity := 1;
             Group.Lb.Fill.Color := MakeColor(global.XYPlaneBackgroundColor, AOpacity);
@@ -2151,8 +2354,14 @@ var
         Group.Sticker.Visible := Group.Visible;
         Group.Sticker.Transparency := true;
         Group.Sticker.ZWrite := StickerZWrite;
+        Group.Sticker.DisableZTest := DisableStickerZTest;
         Group.Sticker.TwoSide := true;
-        if UseFillAlpha then
+        if ForceAxisOverlay then
+          begin
+            Group.Sticker.Opacity := 1;
+            Group.Sticker.Fill.Kind := TBrushKind.None;
+          end
+        else if UseFillAlpha then
           begin
             Group.Sticker.Opacity := 1;
             Group.Sticker.Fill.Color := MakeColor(global.XYPlaneBackgroundColor, AOpacity);
@@ -2191,17 +2400,30 @@ begin
 
   if Assigned(AxisXPanel) then
     begin
-      AxisXPanel.TopSticker.Visible := true;
-      AxisXPanel.BottomSticker.Visible := false;
+      AxisXPanel.TopSticker.Visible := not FAxisViewFromBelow;
+      AxisXPanel.BottomSticker.Visible := FAxisViewFromBelow;
       ApplySticker(AxisXPanel.TopSticker, global.PlaneOpacity);
+      ApplySticker(AxisXPanel.BottomSticker, global.PlaneOpacity);
     end;
 
   if Assigned(AxisYPanel) then
     begin
-      AxisYPanel.TopSticker.Visible := true;
-      AxisYPanel.BottomSticker.Visible := false;
+      AxisYPanel.Base.Visible := true;
+      ApplyRect(AxisYPanel.Base, global.XYPlaneBackgroundColor);
+      AxisYPanel.TopSticker.Visible := false;
+      AxisYPanel.BottomSticker.Visible := true;
       ApplySticker(AxisYPanel.TopSticker, global.PlaneOpacity);
+      ApplySticker(AxisYPanel.BottomSticker, global.PlaneOpacity);
     end;
+end;
+
+procedure TMainContainer.UpdateAxisStickerVisibility(AViewFromBelow: Boolean);
+begin
+  if FAxisViewFromBelow = AViewFromBelow then
+    Exit;
+
+  FAxisViewFromBelow := AViewFromBelow;
+  ApplyPlaneOpacity;
 end;
 
 
@@ -2270,6 +2492,37 @@ begin
   //Context.DrawCube(TPoint3D.Zero, TPoint3D.Create(Width, Height, Depth), 1, DEFAULT_GRID_COLOR);
 end;
 
+procedure TMainContainer.RenderChildren;
+var
+  I: Integer;
+  ChildControl: TControl3D;
+  RenderList: TList<TControl3D>;
+  Comparer: IComparer<TControl3D>;
+begin
+  RenderList := TList<TControl3D>.Create;
+  try
+    for I := 0 to ChildrenCount - 1 do
+      if Children[I] is TControl3D then
+        begin
+          ChildControl := TControl3D(Children[I]);
+          if ChildControl <> AxisYPanel then
+            RenderList.Add(ChildControl);
+        end;
+
+    Comparer := TStageRenderingComparer.Create;
+    RenderList.Sort(Comparer);
+
+    for ChildControl in RenderList do
+      if ChildControl.Visible then
+        ChildControl.RenderInternal;
+  finally
+    RenderList.Free;
+  end;
+
+  if Assigned(AxisYPanel) and AxisYPanel.Visible then
+    AxisYPanel.RenderInternal;
+end;
+
 function TBarContainer.LastSelected: TBar;
 var
   I: Integer;
@@ -2298,6 +2551,7 @@ var
   gb: TBarGraph;
   PackCamera: TMyCamera;
   BearingTop, BearingMiddle: TDummy;
+  SignAngleZ: Single;
 begin
   if (Legend.Visible) and Assigned(Legend.bar) then
     begin
@@ -2307,9 +2561,19 @@ begin
       BearingTop := BearingMiddle.Parent as TDummy;
       with BearingTop.RotationAngle do
         if Legend.bar.val >= 0 then
-          Legend.RotationAngle.Y := 180 + Y
+          begin
+            Legend.RotationAngle.Y := 180 + Y;
+            SignAngleZ := 0;
+          end
         else
-          Legend.RotationAngle.Y := 90 - Y;
+          begin
+            Legend.RotationAngle.Y := 90 - Y;
+            SignAngleZ := 180;
+          end;
+
+      if Assigned(gb.Context) and gb.OnTheHead then
+        SignAngleZ := SignAngleZ + 180;
+      Legend.Sign.RotationAngle.Z := SignAngleZ;
     end;
 end;
 
@@ -2419,7 +2683,6 @@ begin
           Legend.Invalidate;
           PositionLegendForBar(bar);
 
-          InitCamera;
           RotateLegend;
         end;
     end;
@@ -2539,9 +2802,10 @@ begin
       MaterialSource := FMaterial;
     end;
 
-  FMaterial.Ambient := val;
-  FMaterial.Emissive := val;
-  FMaterial.Specular := val;
+  FMaterial.Ambient := ScaleAlphaColor(val, BAR_MATERIAL_AMBIENT_FACTOR);
+  FMaterial.Diffuse := val;
+  FMaterial.Emissive := claBlack;
+  FMaterial.Specular := ScaleAlphaColor(claWhite, BAR_MATERIAL_SPECULAR_FACTOR);
 end;
 
 procedure TBar.SetIsSelected(val: Boolean);
@@ -3089,7 +3353,6 @@ begin
   Legend.Invalidate;
   PositionLegendForBar(FMeshSelectionBar);
 
-  InitCamera;
   RotateLegend;
   (Stg.Boss as TBarGraph).Invalidate;
   Result := true;
@@ -3156,9 +3419,10 @@ begin
 
   mat := TLightMaterialSource.Create(mesh);
   mat.Shininess := 10;
-  mat.Ambient := AColor;
-  mat.Emissive := AColor;
-  mat.Specular := AColor;
+  mat.Ambient := ScaleAlphaColor(AColor, BAR_MATERIAL_AMBIENT_FACTOR);
+  mat.Diffuse := AColor;
+  mat.Emissive := claBlack;
+  mat.Specular := ScaleAlphaColor(claWhite, BAR_MATERIAL_SPECULAR_FACTOR);
   mesh.MaterialSource := mat;
 
   mesh.Data.VertexBuffer.Length := ACount*MESH_VERTICES_PER_BAR;
@@ -3826,6 +4090,20 @@ begin
     end;
 end;
 
+function TBarGraph.CameraSceneRadius: Single;
+var
+  SceneWidth, SceneDepth, SceneHeight: Single;
+begin
+  Result := 1;
+  if not Assigned(Stage) then
+    Exit;
+
+  SceneWidth := Max(Abs(Stage.Width) + 2*SIZE_PANEL_TICKS, 1);
+  SceneDepth := Max(Abs(Stage.Depth) + 2*SIZE_PANEL_TICKS, 1);
+  SceneHeight := Max(Abs(Stage.Height) + 2*SIZE_PANEL_TICKS, 1);
+  Result := Max(1, Sqrt(Sqr(SceneWidth) + Sqr(SceneDepth) + Sqr(SceneHeight))/2);
+end;
+
 procedure TBarGraph.UpdateCameraPosition;
 var
   D, Dx, Dz: Single;
@@ -3833,13 +4111,17 @@ begin
   Dx := Stage.BarContainer.ColCount*(BAR_DEPTH + 2*BAR_PAD)/2 + SIZE_PANEL_TICKS;
   Dz := Stage.BarContainer.RowCount*(BAR_DEPTH + 2*BAR_PAD)/2 + SIZE_PANEL_TICKS;
   D := Sqrt(Sqr(Dx) + Sqr(Dz));
+  D := Max(D, CameraSceneRadius);
   PackCamera.Position.Z := -D;
+  SetPositionLights;
 end;
 
 procedure TBarGraph.SetInitialValues;
 begin
   Camera := PackCamera.cam;
-  Camera.Target := Stage;
+  Guide.Position.Point := TPoint3D.Create(0, 0, 0);
+  BearingTop.Position.Point := TPoint3D.Create(0, 0, 0);
+  Camera.Target := Guide;
 
   BearingTop.RotationAngle.Y := CAMERA_INITIAL_ROT_ANGLE_Y;
   BearingMiddle.RotationAngle.X := CAMERA_INITIAL_ROT_ANGLE_X;
@@ -3848,9 +4130,8 @@ begin
   Stage.Position.X := 0;
   Stage.Position.Y := 0;
   Stage.BarContainer.RotateLegend;
+  Stage.UpdateAxisStickerVisibility(false);
   Status := 'static';
-  Guide.Position.X := 0;
-  Guide.Position.Y := 0;
 end;
 
 constructor TBarGraph.Create(AOwner: TComponent);
@@ -3916,24 +4197,57 @@ end;
 
 procedure TBarGraph.SetPositionLights;
 var
-  F: Single;
-begin
-  if Assigned(RightLight) then
-    begin
-      F := 10;
-      RightLight.Position.X := F*Stage.Width;
-      RightLight.Position.Y := 0;
-      RightLight.Position.Z := F*Stage.Depth;
+  Radius: Single;
+  SceneCenter, CameraPos, ViewDir, KeyPosition, FillPosition: TPoint3D;
 
-      LeftLight.Position.X := -RightLight.Position.X;
-      LeftLight.Position.Y := 0;
-      LeftLight.Position.Z := 0;
-    end;
+  function SafeNormalize(const Value, Fallback: TPoint3D): TPoint3D;
+  begin
+    if Value.Length < 0.001 then
+      Result := Fallback
+    else
+      Result := Value.Normalize;
+  end;
+
+  procedure ConfigureLight(ALight: TLight; const APosition: TPoint3D;
+    AColor: TAlphaColor);
+  begin
+    if not Assigned(ALight) then
+      Exit;
+
+    ALight.LightType := TLightType.Point;
+    ALight.Color := AColor;
+    ALight.Position.Point := APosition;
+    ALight.Width := Max(0.25, Radius*0.03);
+    ALight.Height := ALight.Width;
+    ALight.Depth := ALight.Width;
+  end;
+
+begin
+  if not Assigned(Stage) then
+    Exit;
+
+  Radius := CameraSceneRadius;
+  SceneCenter := TPoint3D(Stage.AbsolutePosition);
+  if Assigned(Camera) then
+    CameraPos := TPoint3D(Camera.AbsolutePosition)
+  else
+    CameraPos := SceneCenter + TPoint3D.Create(0, 0, -Radius);
+
+  ViewDir := SafeNormalize(SceneCenter - CameraPos, TPoint3D.Create(0, 0, 1));
+  KeyPosition := SceneCenter - ViewDir*(Radius*0.45) +
+    TPoint3D.Create(Radius*1.10, -Radius*1.10, -Radius*0.35);
+  FillPosition := SceneCenter + ViewDir*(Radius*0.80) +
+    TPoint3D.Create(-Radius*0.85, -Radius*0.35, Radius*0.85);
+
+  ConfigureLight(RightLight, KeyPosition, LIGHT_KEY_COLOR);
+  ConfigureLight(LeftLight, FillPosition, LIGHT_FILL_COLOR);
 end;
 
 procedure TBarGraph.InitMouseEvents;
 begin
+  CanFocus := true;
   OnMouseWheel := BarMouseWheel;
+  OnKeyDown := BarKeyDown;
   OnMouseDown := BarMouseDown;
   OnMouseMove := BarMouseMove;
   OnMouseUp := BarMouseUp;
@@ -3974,14 +4288,86 @@ end;
 procedure TBarGraph.DoZoom(WheelDelta: Integer);
 var
   PackCamera: TMyCamera;
+  WheelSteps, CurrentDistance, NewDistance: Single;
+  MinDistance, MaxDistance, Radius, ZoomSign: Single;
+  CursorPoint, CenterPoint, CursorOffset, FocusDelta: TPointF;
+  DistanceRatio: Single;
 begin
+  if WheelDelta = 0 then
+    Exit;
+
   PackCamera := Camera.Parent as TMyCamera;
-  with PackCamera.Position do Z := Z + WheelDelta * ZOOM_STEP * PackCamera.dir;
+  CurrentDistance := Max(Abs(PackCamera.Position.Z), 0.001);
+  Radius := CameraSceneRadius;
+  WheelSteps := WheelDelta/120;
+  MinDistance := Max(ZOOM_MIN_DISTANCE, Radius*ZOOM_MIN_RADIUS_FACTOR);
+  MaxDistance := Max(MinDistance + 1, Radius*ZOOM_MAX_RADIUS_FACTOR);
+
+  if PackCamera.Position.Z < 0 then
+    ZoomSign := -1
+  else if PackCamera.Position.Z > 0 then
+    ZoomSign := 1
+  else
+    ZoomSign := -PackCamera.dir;
+
+  NewDistance := EnsureRange(CurrentDistance*Power(ZOOM_WHEEL_FACTOR, WheelSteps),
+    MinDistance, MaxDistance);
+  if SameValue(NewDistance, CurrentDistance, 0.001) then
+    Exit;
+
+  PackCamera.Position.Z := ZoomSign*NewDistance;
+  if FHasWheelFocusPos then
+    CursorPoint := FWheelFocusPos
+  else
+    CursorPoint := PointF(Width/2, Height/2);
+
+  CenterPoint := PointF(Width/2, Height/2);
+  CursorOffset := CursorPoint - CenterPoint;
+  if (Abs(CursorOffset.X) > ZOOM_CURSOR_MIN_OFFSET) or
+    (Abs(CursorOffset.Y) > ZOOM_CURSOR_MIN_OFFSET) then
+    begin
+      DistanceRatio := NewDistance/CurrentDistance;
+      FocusDelta := CursorOffset*(DistanceRatio - 1)*ZOOM_CURSOR_FOCUS_FACTOR;
+      PanCamera(FocusDelta);
+    end;
 end;
 
 procedure TBarGraph.BarMouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean);
 begin
+  FWheelFocusPos := ScreenToLocal(Screen.MousePos);
+  FHasWheelFocusPos := (FWheelFocusPos.X >= 0) and (FWheelFocusPos.X <= Width) and
+    (FWheelFocusPos.Y >= 0) and (FWheelFocusPos.Y <= Height);
+  if not FHasWheelFocusPos then
+    FWheelFocusPos := PointF(Width/2, Height/2);
+  Handled := true;
   DoZoom(WheelDelta);
+end;
+
+procedure TBarGraph.BarKeyDown(Sender: TObject; var Key: Word; var KeyChar: WideChar; Shift: TShiftState);
+begin
+  if (Key = vkHome) or (KeyChar = 'r') or (KeyChar = 'R') then
+    begin
+      Reset;
+      Key := 0;
+      KeyChar := #0;
+      Exit;
+    end;
+
+  case Key of
+    vkLeft:
+      PanCamera(PointF(-KEYBOARD_PAN_DELTA, 0));
+    vkRight:
+      PanCamera(PointF(KEYBOARD_PAN_DELTA, 0));
+    vkUp:
+      PanCamera(PointF(0, -KEYBOARD_PAN_DELTA));
+    vkDown:
+      PanCamera(PointF(0, KEYBOARD_PAN_DELTA));
+  else
+    Exit;
+  end;
+
+  Key := 0;
+  KeyChar := #0;
 end;
 
 function TBarGraph.TrySelectMeshAt(const P: TPointF): Boolean;
@@ -4005,16 +4391,19 @@ procedure TBarGraph.BarMouseDown(Sender: TObject; Button: TMouseButton; Shift: T
 var
   P: TPointF;
 begin
+  SetFocus;
   Tag := 0;
   FDown := PointF(X, Y);
+  FWheelFocusPos := FDown;
+  FHasWheelFocusPos := true;
   FClickStart := FDown;
   FDragMoved := false;
-  if ((ssLeft in Shift) or (ssCtrl in Shift)) and (Status = 'static') then
+  if (Button = TMouseButton.mbLeft) and (Status = 'static') then
     begin
       Status := 'MouseMove';
     end
   else
-  if (ssRight in Shift) and (Status = 'static') then
+  if (Button = TMouseButton.mbRight) and (Status = 'static') then
    begin
      P := LocalToScreen(PointF(X, Y));
      PopupMenu.Popup(P.X, P.Y);
@@ -4038,37 +4427,83 @@ begin
   PackCamera := Camera.Parent as TMyCamera;
   BearingMiddle := PackCamera.Parent as TDummy;
   BearingTop := BearingMiddle.Parent as TDummy;
-  with BearingTop.RotationAngle do if OnTheHead then Y := Y + (FDown.X - aX) else Y := Y + (aX - FDown.X);
-  with BearingMiddle.RotationAngle do X := X + (FDown.Y - aY) * PackCamera.dir;
+  with BearingTop.RotationAngle do
+    if OnTheHead then
+      Y := Y + (FDown.X - aX)*ROTATION_STEP
+    else
+      Y := Y + (aX - FDown.X)*ROTATION_STEP;
+  with BearingMiddle.RotationAngle do
+    X := X + (FDown.Y - aY)*ROTATION_STEP*PackCamera.dir;
   FDown := PointF(aX, aY);
   Stage.BarContainer.RotateLegend;
+  Stage.UpdateAxisStickerVisibility(OnTheHead);
+  SetPositionLights;
+end;
+
+procedure TBarGraph.PanCamera(const Delta: TPointF);
+var
+  CurrentPackCamera: TMyCamera;
+  CurrentBearingMiddle, CurrentBearingTop: TDummy;
+  CameraRight, CameraUp, PanVector: TPoint3D;
+  Distance, PanStep: Single;
+
+  function SafeNormalize(const Value, Fallback: TPoint3D): TPoint3D;
+  begin
+    if Value.Length < 0.001 then
+      Result := Fallback
+    else
+      Result := Value.Normalize;
+  end;
+
+begin
+  if not Assigned(Camera) or not Assigned(Guide) then
+    Exit;
+
+  if not (Camera.Parent is TMyCamera) then
+    Exit;
+
+  CurrentPackCamera := Camera.Parent as TMyCamera;
+  if not (CurrentPackCamera.Parent is TDummy) then
+    Exit;
+
+  CurrentBearingMiddle := CurrentPackCamera.Parent as TDummy;
+  if not (CurrentBearingMiddle.Parent is TDummy) then
+    Exit;
+
+  CurrentBearingTop := CurrentBearingMiddle.Parent as TDummy;
+  Camera.Target := Guide;
+
+  Distance := Max(Abs(CurrentPackCamera.Position.Z), 1);
+  PanStep := Max(PAN_MIN_STEP, Distance*PAN_SCREEN_FACTOR);
+  CameraRight := SafeNormalize(TPoint3D(Camera.AbsoluteLeft)*-1,
+    TPoint3D.Create(1, 0, 0));
+  CameraUp := SafeNormalize(TPoint3D(Camera.AbsoluteUp)*-1,
+    TPoint3D.Create(0, 1, 0));
+  PanVector := (CameraRight*Delta.X + CameraUp*Delta.Y)*PanStep;
+
+  Guide.Position.Point := Guide.Position.Point + PanVector;
+  CurrentBearingTop.Position.Point := CurrentBearingTop.Position.Point + PanVector;
+  SetPositionLights;
 end;
 
 procedure TBarGraph.BarMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Single);
 var
   Delta: TPointF;
- // mc: TMyCamera;
 begin
+  FWheelFocusPos := PointF(X, Y);
+  FHasWheelFocusPos := true;
   Delta := PointF(X, Y) - FDown;
-  if ((ssLeft in Shift) or (ssCtrl in Shift)) and (Status = 'MouseMove') and
+  if (ssLeft in Shift) and (Status = 'MouseMove') and
     ((Abs(X - FClickStart.X) > 3) or (Abs(Y - FClickStart.Y) > 3)) then
     FDragMoved := true;
 
   if not FDragMoved then
     Exit;
 
-  if (ssCtrl in Shift) and (Status = 'MouseMove') then
+  if (ssCtrl in Shift) and (ssLeft in Shift) and (Status = 'MouseMove') then
     begin
-      {
-      mc := Camera.Parent as TMyCamera;
-      if Camera = MainCamera.cam then
-        begin
-          guide.Position.X := guide.Position.X - Delta.X*TRANSLATION_STEP;
-          guide.Position.Y := guide.Position.Y - Delta.Y*TRANSLATION_STEP;
-          mc.Position.X := mc.Position.X - Delta.X*TRANSLATION_STEP;
-          mc.Position.Y := mc.Position.Y - Delta.Y*TRANSLATION_STEP;
-        end;
-        }
+      PanCamera(Delta);
+      FDown := PointF(X, Y);
     end
   else
   if (ssLeft in Shift) and (Status = 'MouseMove') then

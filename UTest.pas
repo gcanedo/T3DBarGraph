@@ -64,11 +64,12 @@ end;
 procedure TForm1.CreateToolbar;
 var
   Btn: TButton;
+  NavLabel: TLabel;
 begin
   FToolbar := TLayout.Create(Self);
   FToolbar.Parent := Self;
   FToolbar.Align := TAlignLayout.Top;
-  FToolbar.Height := 104;
+  FToolbar.Height := 128;
   FToolbar.Padding.Left := 12;
   FToolbar.Padding.Right := 12;
   FToolbar.Padding.Top := 10;
@@ -101,8 +102,24 @@ begin
   FDetailLabel.Position.X := 12;
   FDetailLabel.Position.Y := 52;
   FDetailLabel.Width := 1190;
-  FDetailLabel.Height := 40;
+  FDetailLabel.Height := 20;
   FDetailLabel.Text := 'Choose a dataset size to start a timed load.';
+
+  NavLabel := TLabel.Create(Self);
+  NavLabel.Parent := FToolbar;
+  NavLabel.Position.X := 12;
+  NavLabel.Position.Y := 76;
+  NavLabel.Width := 1190;
+  NavLabel.Height := 20;
+  NavLabel.Text := 'Mouse: left-drag to rotate | Ctrl + left-drag to pan | wheel zooms toward cursor | click a bar to select';
+
+  NavLabel := TLabel.Create(Self);
+  NavLabel.Parent := FToolbar;
+  NavLabel.Position.X := 12;
+  NavLabel.Position.Y := 100;
+  NavLabel.Width := 1190;
+  NavLabel.Height := 20;
+  NavLabel.Text := 'Keyboard: arrow keys pan | R or Home resets the view | click empty space to clear selection';
 end;
 
 procedure TForm1.CreateGraph;
@@ -122,7 +139,7 @@ begin
   BarGraph.AutoScale := true;
   BarGraph.NumTicks := 10;
 
-  BarGraph.PlaneOpacity := 0.75;
+  BarGraph.PlaneOpacity := 0.5;
 
   if Assigned(FToolbar) then
     FToolbar.BringToFront;
