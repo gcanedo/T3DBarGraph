@@ -10,6 +10,8 @@ The repository also includes a FireMonkey demo application and a performance tes
 
 Current public release: `v0.1.0`.
 
+[Documentation site](https://gcanedo.github.io/T3DBarGraph/) | [GitHub Releases](https://github.com/gcanedo/T3DBarGraph/releases)
+
 ![T3DBarGraph demo](assets/demo.gif)
 
 ## Features

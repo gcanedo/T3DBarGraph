@@ -1,0 +1,62 @@
+site_name: T3DBarGraph
+site_description: Delphi FireMonkey 3D bar chart component for dynamic and large datasets.
+site_url: https://gcanedo.github.io/T3DBarGraph/
+repo_url: https://github.com/gcanedo/T3DBarGraph
+repo_name: gcanedo/T3DBarGraph
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+  palette:
+    - scheme: default
+      primary: red
+      accent: cyan
+    - scheme: slate
+      primary: red
+      accent: cyan
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: default
+      primary: red
+      accent: cyan
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+nav:
+  - Overview: index.md
+  - Getting Started: getting-started.md
+  - Basic Usage: basic-usage.md
+  - API Reference: api.md
+  - Interaction: interaction.md
+  - Performance: performance.md
+  - Releases: releases.md
+  - Roadmap: roadmap.md
+  - Contributing: contributing.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/gcanedo/T3DBarGraph
+
+extra_css:
+  - stylesheets/extra.css

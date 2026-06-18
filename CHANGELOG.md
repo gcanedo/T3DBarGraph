@@ -6,6 +6,12 @@ This project follows pragmatic semantic versioning while the public API stabiliz
 
 ## Unreleased
 
+### Added
+
+- MkDocs documentation site source under `docs/`.
+- GitHub Pages deployment workflow for the documentation site.
+- PDF manual generation from the documentation Markdown pages.
+
 Planned work:
 
 - Improve dataset loading helpers.

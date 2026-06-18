@@ -88,6 +88,10 @@ release/
 releases/
 *.zip
 
+# Documentation build outputs
+site/
+docs/assets/T3DBarGraph-Manual.pdf
+
 # Environment / local secrets
 .env
 .env.*
